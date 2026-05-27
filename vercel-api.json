@@ -8,6 +8,8 @@
         "bundle": true,
         "maxLambdaSize": "50mb",
         "includeFiles": [
+          "packages/**",
+          "apps/api/src/**",
           "node_modules/.prisma/**",
           "node_modules/@prisma/client/schema.prisma"
         ]
