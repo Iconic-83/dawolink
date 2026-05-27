@@ -1,0 +1,49 @@
+databases:
+  - name: dawolink-db
+    databaseName: dawolink
+    user: dawolink_user
+    plan: free
+    region: oregon
+
+services:
+  # ── API (NestJS) ─────────────────────────────────────────────────────────
+  - type: web
+    name: dawolink-api
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build --workspace=@dawolink/api
+    startCommand: npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma && node apps/api/dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dawolink-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  # ── Web (Next.js) ────────────────────────────────────────────────────────
+  - type: web
+    name: dawolink-web
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: >
+      npm ci --include=dev &&
+      npm run build --workspace=@dawolink/web &&
+      cp -r apps/web/public apps/web/.next/standalone/public &&
+      mkdir -p apps/web/.next/standalone/.next &&
+      cp -r apps/web/.next/static apps/web/.next/standalone/.next/static
+    startCommand: node apps/web/.next/standalone/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

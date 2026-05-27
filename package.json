@@ -13,7 +13,8 @@
     "test": "turbo run test",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
-    "db:studio": "cd packages/database && npx prisma studio"
+    "db:studio": "cd packages/database && npx prisma studio",
+    "postinstall": "npx prisma generate --schema=packages/database/prisma/schema.prisma"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
