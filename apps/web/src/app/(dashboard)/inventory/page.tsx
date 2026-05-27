@@ -39,11 +39,10 @@ export default function InventoryPage() {
     queryFn: () => api.get(`/v1/medicines?search=${encodeURIComponent(search)}`).then(r => r.data),
   });
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
-    onSuccess: (data: any[]) => { if (data.length && !selectedBranch) setSelectedBranch(data[0].id); },
-  } as any);
+  });
 
   const { data: stockItems = [], isLoading: loadingStock } = useQuery({
     queryKey: ["stock", selectedBranch],

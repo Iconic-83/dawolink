@@ -16,11 +16,10 @@ export default function AnalyticsPage() {
   const qc = useQueryClient();
   const [selectedBranch, setSelectedBranch] = useState("");
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
-    onSuccess: (data: any[]) => { if (data.length && !selectedBranch) setSelectedBranch(data[0].id); },
-  } as any);
+  });
 
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ["dashboard"],

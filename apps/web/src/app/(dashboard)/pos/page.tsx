@@ -19,14 +19,11 @@ export default function PosPage() {
   const [receipt, setReceipt] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState<string>("");
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches", user?.pharmacyId],
     queryFn: () => api.get("/v1/pharmacy/branches").then((r) => r.data),
     enabled: !!user,
-    onSuccess: (data) => {
-      if (data.length > 0 && !selectedBranch) setSelectedBranch(data[0].id);
-    },
-  } as any);
+  });
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
 

@@ -28,11 +28,10 @@ export default function ExpiryPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
-    onSuccess: (data: any[]) => { if (data.length && !selectedBranch) setSelectedBranch(data[0].id); },
-  } as any);
+  });
 
   const { data: dashboard } = useQuery({
     queryKey: ["expiry-dashboard", selectedBranch],
@@ -40,13 +39,13 @@ export default function ExpiryPage() {
     enabled: !!selectedBranch,
   });
 
-  const { data: expiringSoon = [], isLoading } = useQuery({
+  const { data: expiringSoon = [], isLoading } = useQuery<any[]>({
     queryKey: ["expiring-soon", selectedBranch],
     queryFn: () => api.get(`/v1/expiry/branches/${selectedBranch}/expiring?days=90`).then(r => r.data),
     enabled: !!selectedBranch,
   });
 
-  const { data: expired = [] } = useQuery({
+  const { data: expired = [] } = useQuery<any[]>({
     queryKey: ["expired", selectedBranch],
     queryFn: () => api.get(`/v1/expiry/branches/${selectedBranch}/expired`).then(r => r.data),
     enabled: !!selectedBranch,
