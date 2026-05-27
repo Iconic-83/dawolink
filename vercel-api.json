@@ -5,18 +5,16 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
+        "bundle": true,
+        "maxLambdaSize": "50mb",
         "includeFiles": [
-          "apps/api/src/**",
-          "packages/database/src/**",
-          "packages/database/prisma/**",
           "node_modules/.prisma/**",
-          "node_modules/@prisma/client/**"
-        ],
-        "maxLambdaSize": "50mb"
+          "node_modules/@prisma/client/schema.prisma"
+        ]
       }
     }
   ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
+  "routes": [
+    { "src": "/(.*)", "dest": "/api/index" }
   ]
 }

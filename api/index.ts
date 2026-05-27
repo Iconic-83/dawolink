@@ -1,13 +1,13 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from '../apps/api/src/app.module';
 import type { IncomingMessage, ServerResponse } from 'http';
 
 let cachedApp: any;
 
 async function bootstrap() {
   if (cachedApp) return cachedApp;
-  const { AppModule } = await import('../apps/api/src/app.module');
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
