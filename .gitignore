@@ -49,3 +49,4 @@ redis-data
 # Uploads
 uploads
 public/uploads
+.github/workflows/
