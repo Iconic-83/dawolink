@@ -18,6 +18,7 @@
     "typescript": "^5.4.0"
   },
   "exports": {
-    ".": "./src/index.ts"
-  }
+    ".": "./index.js"
+  },
+  "main": "./index.js"
 }
