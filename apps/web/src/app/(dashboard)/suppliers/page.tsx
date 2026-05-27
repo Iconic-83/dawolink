@@ -63,6 +63,12 @@ export default function SuppliersPage() {
     setShowCreatePO(true);
   }
 
+  function tabCls(id: Tab) {
+    return `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition ${
+      tab === id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
+    }`;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -109,10 +115,10 @@ export default function SuppliersPage() {
       {/* Tabs + content */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="flex items-center gap-0 border-b border-gray-100 px-1 pt-1">
-          <button onClick={() => setTab("suppliers")} className={tab("suppliers", tab)}>
+          <button onClick={() => setTab("suppliers")} className={tabCls("suppliers")}>
             <Truck className="h-3.5 w-3.5" /> Suppliers ({suppliers.length})
           </button>
-          <button onClick={() => setTab("orders")} className={tab("orders", tab)}>
+          <button onClick={() => setTab("orders")} className={tabCls("orders")}>
             <ClipboardList className="h-3.5 w-3.5" /> Purchase Orders ({totalOrders})
           </button>
 
