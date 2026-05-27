@@ -42,7 +42,7 @@ export function TopMedicinesChart({ branchId }: { branchId: string }) {
             <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={false} tickLine={false} width={90} />
             <Tooltip
               formatter={(v: number, name: string) => [name === "sold" ? `${v} units` : formatCurrency(v), name === "sold" ? "Sold" : "Revenue"]}
-              labelFormatter={(_, p) => p?.[0]?.payload?.fullName ?? ""}
+              labelFormatter={(_: any, p: any[]) => p?.[0]?.payload?.fullName ?? ""}
               contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb" }}
             />
             <Bar dataKey="sold" radius={[0, 6, 6, 0]}>
