@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
+import { UpdateStaffDto } from "./dto/update-staff.dto";
 
 @Injectable()
 export class PharmacyService {
@@ -33,12 +34,37 @@ export class PharmacyService {
 
   async getStaff(pharmacyId: string) {
     return this.prisma.user.findMany({
-      where: { pharmacyId, isActive: true },
+      where: { pharmacyId },
       select: {
         id: true, firstName: true, lastName: true,
         email: true, phone: true, role: true,
-        branchId: true, lastLoginAt: true,
+        branchId: true, lastLoginAt: true, isActive: true, createdAt: true,
+        branch: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async updateStaff(pharmacyId: string, userId: string, dto: UpdateStaffDto) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, pharmacyId } });
+    if (!user) throw new NotFoundException("Staff member not found");
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: {
+        id: true, firstName: true, lastName: true,
+        email: true, phone: true, role: true,
+        branchId: true, isActive: true,
+        branch: { select: { name: true } },
       },
     });
+  }
+
+  async deactivateStaff(pharmacyId: string, userId: string) {
+    return this.updateStaff(pharmacyId, userId, { isActive: false });
+  }
+
+  async reactivateStaff(pharmacyId: string, userId: string) {
+    return this.updateStaff(pharmacyId, userId, { isActive: true });
   }
 }

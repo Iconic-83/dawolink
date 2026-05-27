@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Req } from "@nestjs/common";
 import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PharmacyService } from "./pharmacy.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
+import { UpdateStaffDto } from "./dto/update-staff.dto";
 
 @ApiTags("Pharmacy")
 @ApiBearerAuth()
@@ -35,5 +36,20 @@ export class PharmacyController {
   @Get("staff")
   getStaff(@Req() req: any) {
     return this.pharmacy.getStaff(req.user.pharmacyId);
+  }
+
+  @Patch("staff/:id")
+  updateStaff(@Req() req: any, @Param("id") id: string, @Body() dto: UpdateStaffDto) {
+    return this.pharmacy.updateStaff(req.user.pharmacyId, id, dto);
+  }
+
+  @Patch("staff/:id/deactivate")
+  deactivateStaff(@Req() req: any, @Param("id") id: string) {
+    return this.pharmacy.deactivateStaff(req.user.pharmacyId, id);
+  }
+
+  @Patch("staff/:id/reactivate")
+  reactivateStaff(@Req() req: any, @Param("id") id: string) {
+    return this.pharmacy.reactivateStaff(req.user.pharmacyId, id);
   }
 }
