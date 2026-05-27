@@ -30,7 +30,7 @@ export function CreatePOModal({ open, onClose, prefillSupplierId }: {
 }) {
   const qc = useQueryClient();
 
-  const { data: suppliers = [] } = useQuery({
+  const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["suppliers"],
     queryFn: () => api.get("/v1/suppliers").then(r => r.data),
   });

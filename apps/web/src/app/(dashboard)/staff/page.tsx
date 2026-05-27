@@ -47,7 +47,7 @@ export default function StaffPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editStaff, setEditStaff] = useState<any>(null);
 
-  const { data: staff = [], isLoading } = useQuery({
+  const { data: staff = [], isLoading } = useQuery<any[]>({
     queryKey: ["staff"],
     queryFn: () => api.get("/v1/pharmacy/staff").then(r => r.data),
   });
@@ -71,7 +71,7 @@ export default function StaffPage() {
   });
 
   const activeCount   = staff.filter((s: any) => s.isActive).length;
-  const roles = [...new Set(staff.map((s: any) => s.role))];
+  const roles = Array.from(new Set(staff.map((s: any) => s.role as string)));
 
   const roleGroups = Object.entries(ROLE_META).map(([role, meta]) => ({
     ...meta,

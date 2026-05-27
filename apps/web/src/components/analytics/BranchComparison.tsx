@@ -7,7 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { PageSpinner } from "@/components/ui/Spinner";
 
 export function BranchComparison() {
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<any[]>({
     queryKey: ["branch-comparison"],
     queryFn: () => api.get("/v1/analytics/branches").then(r => r.data),
   });

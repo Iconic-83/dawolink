@@ -12,7 +12,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 const COLORS = ["#3b82f6","#6366f1","#8b5cf6","#a78bfa","#c4b5fd","#ddd6fe","#ede9fe","#f5f3ff","#faf5ff","#f0f9ff"];
 
 export function TopMedicinesChart({ branchId }: { branchId: string }) {
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<any[]>({
     queryKey: ["top-medicines", branchId],
     queryFn: () =>
       api.get(`/v1/analytics/branches/${branchId}/top-medicines?limit=10`).then(r => r.data),

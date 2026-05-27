@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export function ExpiryAlertsWidget() {
-  const { data = [] } = useQuery({
+  const { data = [] } = useQuery<any[]>({
     queryKey: ["expiry-alerts"],
     queryFn: () => api.get("/v1/expiry/alerts").then((r) => r.data),
   });

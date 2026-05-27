@@ -33,7 +33,7 @@ export default function ExpiryPage() {
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });
 
-  const { data: dashboard } = useQuery({
+  const { data: dashboard } = useQuery<any>({
     queryKey: ["expiry-dashboard", selectedBranch],
     queryFn: () => api.get(`/v1/expiry/branches/${selectedBranch}/dashboard`).then(r => r.data),
     enabled: !!selectedBranch,

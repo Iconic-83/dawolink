@@ -31,12 +31,12 @@ export default function SuppliersPage() {
   const [showCreatePO, setShowCreatePO] = useState(false);
   const [prefillSupplier, setPrefillSupplier] = useState<string | undefined>();
 
-  const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery({
+  const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery<any[]>({
     queryKey: ["suppliers"],
     queryFn: () => api.get("/v1/suppliers").then(r => r.data),
   });
 
-  const { data: orders = [], isLoading: loadingOrders } = useQuery({
+  const { data: orders = [], isLoading: loadingOrders } = useQuery<any[]>({
     queryKey: ["purchase-orders"],
     queryFn: () => api.get("/v1/suppliers/purchase-orders/all").then(r => r.data),
   });

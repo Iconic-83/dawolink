@@ -19,7 +19,7 @@ const RANGES = [
 export function RevenueChart() {
   const [range, setRange] = useState(30);
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<any[]>({
     queryKey: ["revenue-trend", range],
     queryFn: () => api.get(`/v1/analytics/revenue-trend?days=${range}`).then(r => r.data),
   });

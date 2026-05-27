@@ -13,7 +13,7 @@ export function MedicineSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const addItem = usePosStore((s) => s.addItem);
 
-  const { data: results = [], isFetching } = useQuery({
+  const { data: results = [], isFetching } = useQuery<any[]>({
     queryKey: ["medicine-search", query],
     queryFn: () =>
       api.get(`/v1/medicines?search=${encodeURIComponent(query)}`).then((r) => r.data),

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import dayjs from "dayjs";
 
 export function RevenueTrendChart() {
-  const { data = [] } = useQuery({
+  const { data = [] } = useQuery<any[]>({
     queryKey: ["revenue-trend"],
     queryFn: () => api.get("/v1/analytics/revenue-trend?days=30").then((r) => r.data),
   });

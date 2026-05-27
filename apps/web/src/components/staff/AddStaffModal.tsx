@@ -36,7 +36,7 @@ export function AddStaffModal({ open, onClose, pharmacyId }: {
 }) {
   const qc = useQueryClient();
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });

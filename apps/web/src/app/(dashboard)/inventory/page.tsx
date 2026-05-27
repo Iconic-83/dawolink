@@ -34,7 +34,7 @@ export default function InventoryPage() {
   const [adjustItem, setAdjustItem] = useState<any>(null);
   const [prefillMedId, setPrefillMedId] = useState<string | undefined>();
 
-  const { data: medicines = [], isLoading: loadingMeds } = useQuery({
+  const { data: medicines = [], isLoading: loadingMeds } = useQuery<any[]>({
     queryKey: ["medicines", search],
     queryFn: () => api.get(`/v1/medicines?search=${encodeURIComponent(search)}`).then(r => r.data),
   });
@@ -44,19 +44,19 @@ export default function InventoryPage() {
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });
 
-  const { data: stockItems = [], isLoading: loadingStock } = useQuery({
+  const { data: stockItems = [], isLoading: loadingStock } = useQuery<any[]>({
     queryKey: ["stock", selectedBranch],
     queryFn: () => api.get(`/v1/inventory/branches/${selectedBranch}/items`).then(r => r.data),
     enabled: !!selectedBranch,
   });
 
-  const { data: stockValue } = useQuery({
+  const { data: stockValue } = useQuery<any>({
     queryKey: ["stock-value", selectedBranch],
     queryFn: () => api.get(`/v1/inventory/branches/${selectedBranch}/value`).then(r => r.data),
     enabled: !!selectedBranch,
   });
 
-  const categories = [...new Set(medicines.map((m: any) => m.category))].sort();
+  const categories = Array.from(new Set(medicines.map((m: any) => m.category as string))).sort();
   const filteredMeds = medicines.filter((m: any) =>
     (!categoryFilter || m.category === categoryFilter)
   );

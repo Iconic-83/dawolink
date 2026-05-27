@@ -33,17 +33,17 @@ interface Props {
 export function AddStockModal({ open, onClose, prefillMedicineId }: Props) {
   const qc = useQueryClient();
 
-  const { data: medicines = [] } = useQuery({
+  const { data: medicines = [] } = useQuery<any[]>({
     queryKey: ["medicines"],
     queryFn: () => api.get("/v1/medicines").then(r => r.data),
   });
 
-  const { data: branches = [] } = useQuery({
+  const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });
 
-  const { data: suppliers = [] } = useQuery({
+  const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["suppliers"],
     queryFn: () => api.get("/v1/suppliers").then(r => r.data),
   });

@@ -21,7 +21,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 export function PaymentBreakdown({ branchId }: { branchId: string }) {
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [] } = useQuery<any[]>({
     queryKey: ["transactions-recent", branchId],
     queryFn: () =>
       api.get(`/v1/pos/branches/${branchId}/transactions?limit=200`).then(r => r.data),

@@ -21,12 +21,12 @@ export default function AnalyticsPage() {
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });
 
-  const { data: dashboard, isLoading } = useQuery({
+  const { data: dashboard, isLoading } = useQuery<any>({
     queryKey: ["dashboard"],
     queryFn: () => api.get("/v1/analytics/dashboard").then(r => r.data),
   });
 
-  const { data: todaySummary } = useQuery({
+  const { data: todaySummary } = useQuery<any>({
     queryKey: ["daily-summary", selectedBranch],
     queryFn: () =>
       api.get(`/v1/pos/branches/${selectedBranch}/summary`).then(r => r.data),

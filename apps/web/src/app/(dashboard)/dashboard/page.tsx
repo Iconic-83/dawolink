@@ -8,7 +8,7 @@ import { ExpiryAlertsWidget } from "@/components/dashboard/ExpiryAlertsWidget";
 import { LowStockWidget } from "@/components/dashboard/LowStockWidget";
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ["dashboard"],
     queryFn: () => api.get("/v1/analytics/dashboard").then((r) => r.data),
   });
