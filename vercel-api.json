@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "apps/api/src/**",
+          "packages/database/src/**",
+          "packages/database/prisma/**",
+          "node_modules/.prisma/**",
+          "node_modules/@prisma/client/**"
+        ],
+        "maxLambdaSize": "50mb"
+      }
+    }
+  ],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ]
+}
