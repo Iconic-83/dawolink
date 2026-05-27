@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// TENANCY & IDENTITY
+// ─────────────────────────────────────────────
+
+model Pharmacy {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String?
+  slug        String   @unique
+  email       String?
+  phone       String
+  address     String
+  city        String
+  country     String   @default("Somalia")
+  licenseNo   String?
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+  plan        Plan     @default(STARTER)
+  planExpiry  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branches    Branch[]
+  users       User[]
+  medicines   Medicine[]
+  suppliers   Supplier[]
+  auditLogs   AuditLog[]
+
+  @@map("pharmacies")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  pharmacyId  String
+  name        String
+  address     String
+  phone       String?
+  isMain      Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pharmacy    Pharmacy   @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  users       User[]
+  inventory   InventoryItem[]
+  transactions Transaction[]
+  transfers   StockTransfer[]  @relation("FromBranch")
+  transfersIn StockTransfer[]  @relation("ToBranch")
+
+  @@map("branches")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  pharmacyId   String
+  branchId     String?
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  pharmacy     Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  transactions Transaction[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  device    String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────────
+// MEDICINE CATALOG
+// ─────────────────────────────────────────────
+
+model Medicine {
+  id              String   @id @default(cuid())
+  pharmacyId      String
+  name            String
+  genericName     String?
+  barcode         String?
+  sku             String?
+  category        String
+  form            MedicineForm
+  strength        String?
+  unit            String   @default("pcs")
+  requiresPrescription Boolean @default(false)
+  description     String?
+  imageUrl        String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pharmacy        Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  inventory       InventoryItem[]
+  transactionItems TransactionItem[]
+  interactions    DrugInteraction[] @relation("MedicineA")
+  interactsWith   DrugInteraction[] @relation("MedicineB")
+
+  @@unique([pharmacyId, barcode])
+  @@unique([pharmacyId, sku])
+  @@map("medicines")
+}
+
+model InventoryItem {
+  id             String    @id @default(cuid())
+  branchId       String
+  medicineId     String
+  batchNo        String?
+  supplierId     String?
+  quantity       Int       @default(0)
+  reorderLevel   Int       @default(10)
+  costPrice      Decimal   @db.Decimal(10, 2)
+  sellingPrice   Decimal   @db.Decimal(10, 2)
+  expiryDate     DateTime?
+  manufactureDate DateTime?
+  location       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  branch         Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  medicine       Medicine  @relation(fields: [medicineId], references: [id])
+  supplier       Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@map("inventory_items")
+}
+
+// ─────────────────────────────────────────────
+// SUPPLIERS & PROCUREMENT
+// ─────────────────────────────────────────────
+
+model Supplier {
+  id           String   @id @default(cuid())
+  pharmacyId   String
+  name         String
+  contactName  String?
+  email        String?
+  phone        String
+  address      String?
+  city         String?
+  rating       Float?
+  isActive     Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pharmacy     Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  inventory    InventoryItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id           String        @id @default(cuid())
+  supplierId   String
+  pharmacyId   String
+  orderNo      String        @unique
+  status       POStatus      @default(PENDING)
+  totalAmount  Decimal       @db.Decimal(12, 2)
+  notes        String?
+  orderedAt    DateTime      @default(now())
+  receivedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  supplier     Supplier      @relation(fields: [supplierId], references: [id])
+  items        POItem[]
+
+  @@map("purchase_orders")
+}
+
+model POItem {
+  id             String        @id @default(cuid())
+  purchaseOrderId String
+  medicineName   String
+  quantity       Int
+  unitCost       Decimal       @db.Decimal(10, 2)
+  receivedQty    Int           @default(0)
+
+  purchaseOrder  PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@map("po_items")
+}
+
+// ─────────────────────────────────────────────
+// TRANSACTIONS / POS
+// ─────────────────────────────────────────────
+
+model Customer {
+  id           String   @id @default(cuid())
+  pharmacyId   String
+  name         String
+  phone        String?
+  email        String?
+  address      String?
+  dateOfBirth  DateTime?
+  allergies    String[]
+  notes        String?
+  balance      Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transactions Transaction[]
+
+  @@map("customers")
+}
+
+model Transaction {
+  id              String          @id @default(cuid())
+  branchId        String
+  userId          String
+  customerId      String?
+  receiptNo       String          @unique
+  type            TransactionType @default(SALE)
+  paymentMethod   PaymentMethod   @default(CASH)
+  subtotal        Decimal         @db.Decimal(12, 2)
+  discount        Decimal         @default(0) @db.Decimal(10, 2)
+  tax             Decimal         @default(0) @db.Decimal(10, 2)
+  total           Decimal         @db.Decimal(12, 2)
+  amountPaid      Decimal         @db.Decimal(12, 2)
+  change          Decimal         @default(0) @db.Decimal(10, 2)
+  status          TransactionStatus @default(COMPLETED)
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  branch          Branch          @relation(fields: [branchId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
+  customer        Customer?       @relation(fields: [customerId], references: [id])
+  items           TransactionItem[]
+
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  medicineId    String
+  quantity      Int
+  unitPrice     Decimal     @db.Decimal(10, 2)
+  discount      Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  batchNo       String?
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  medicine      Medicine    @relation(fields: [medicineId], references: [id])
+
+  @@map("transaction_items")
+}
+
+// ─────────────────────────────────────────────
+// STOCK TRANSFERS
+// ─────────────────────────────────────────────
+
+model StockTransfer {
+  id            String         @id @default(cuid())
+  fromBranchId  String
+  toBranchId    String
+  transferNo    String         @unique
+  status        TransferStatus @default(PENDING)
+  notes         String?
+  requestedAt   DateTime       @default(now())
+  completedAt   DateTime?
+
+  fromBranch    Branch         @relation("FromBranch", fields: [fromBranchId], references: [id])
+  toBranch      Branch         @relation("ToBranch", fields: [toBranchId], references: [id])
+  items         TransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model TransferItem {
+  id             String        @id @default(cuid())
+  transferId     String
+  medicineName   String
+  quantity       Int
+  batchNo        String?
+
+  transfer       StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@map("transfer_items")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT & SECURITY
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  pharmacyId String
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  pharmacy   Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// DRUG SAFETY
+// ─────────────────────────────────────────────
+
+model DrugInteraction {
+  id          String            @id @default(cuid())
+  medicineAId String
+  medicineBId String
+  severity    InteractionLevel
+  description String
+
+  medicineA   Medicine          @relation("MedicineA", fields: [medicineAId], references: [id])
+  medicineB   Medicine          @relation("MedicineB", fields: [medicineBId], references: [id])
+
+  @@unique([medicineAId, medicineBId])
+  @@map("drug_interactions")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  PHARMACY_OWNER
+  BRANCH_MANAGER
+  PHARMACIST
+  CASHIER
+  INVENTORY_STAFF
+  AUDITOR
+}
+
+enum MedicineForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  INJECTION
+  CREAM
+  DROPS
+  INHALER
+  POWDER
+  SUPPOSITORY
+  PATCH
+  OTHER
+}
+
+enum POStatus {
+  PENDING
+  CONFIRMED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum TransactionType {
+  SALE
+  RETURN
+  EXCHANGE
+}
+
+enum PaymentMethod {
+  CASH
+  EVC_PLUS
+  ZAAD
+  SAHAL
+  PREMIER_WALLET
+  CREDIT
+  MIXED
+}
+
+enum TransactionStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+  REFUNDED
+}
+
+enum TransferStatus {
+  PENDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+enum InteractionLevel {
+  MILD
+  MODERATE
+  SEVERE
+  CONTRAINDICATED
+}
