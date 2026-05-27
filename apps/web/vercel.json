@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm ci --prefix ../.. --include=dev",
+  "installCommand": "npm install --prefix ../.. --include=dev",
   "buildCommand": "npm run build --prefix ../.. --workspace=@dawolink/web",
   "framework": "nextjs",
   "outputDirectory": ".next"
