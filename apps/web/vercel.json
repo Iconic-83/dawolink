@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install --prefix ../.. --include=dev",
-  "buildCommand": "npm run build --prefix ../.. --workspace=@dawolink/web",
+  "installCommand": "cd ../.. && npm install --include=dev",
+  "buildCommand": "cd ../.. && npm run build --workspace=@dawolink/web",
   "framework": "nextjs",
   "outputDirectory": ".next"
 }
