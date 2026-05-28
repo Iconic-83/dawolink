@@ -4,14 +4,17 @@ export default function AboutPage() {
   return (
     <div style={{ background: "#F4F2FF", minHeight: "100vh" }}>
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,242,255,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #E8E4FF" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#2D1B8E,#4A8FE5)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 16 }}>D</div>
             <span style={{ fontWeight: 800, fontSize: 18, color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
           </Link>
-          <div style={{ display: "flex", gap: 20 }}>
-            <Link href="/features" style={{ fontSize: 14, color: "#6B6B9A", textDecoration: "none" }}>Features</Link>
-            <Link href="/pricing" style={{ fontSize: 14, color: "#6B6B9A", textDecoration: "none" }}>Pricing</Link>
+          <div style={{ display: "flex", gap: 32, fontSize: 14, fontWeight: 500 }}>
+            <Link href="/features" style={{ color: "#6B6B9A", textDecoration: "none" }}>Features</Link>
+            <Link href="/pricing" style={{ color: "#6B6B9A", textDecoration: "none" }}>Pricing</Link>
+            <Link href="/about" style={{ color: "#2D1B8E", textDecoration: "none", fontWeight: 700 }}>About</Link>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <Link href="/login" style={{ fontSize: 14, fontWeight: 600, padding: "7px 18px", borderRadius: 10, color: "white", background: "linear-gradient(90deg,#2D1B8E,#3D2AAD)", textDecoration: "none" }}>Get Started</Link>
           </div>
         </div>
