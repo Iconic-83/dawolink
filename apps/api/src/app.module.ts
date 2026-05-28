@@ -11,6 +11,7 @@ import { ExpiryModule } from "./expiry/expiry.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { PharmacyModule } from "./pharmacy/pharmacy.module";
 import { PlatformModule } from "./platform/platform.module";
+import { RbacModule } from "./rbac/rbac.module";
 
 @Module({
   controllers: [HealthController],
@@ -19,6 +20,7 @@ import { PlatformModule } from "./platform/platform.module";
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     DatabaseModule,
     AuthModule,
+    RbacModule,
     PlatformModule,
     PharmacyModule,
     InventoryModule,

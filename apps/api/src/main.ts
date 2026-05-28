@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, VersioningType } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { RbacService } from "./rbac/rbac.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -32,6 +33,10 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("api/docs", app, document);
+
+  // Seed system permissions (idempotent)
+  const rbac = app.get(RbacService);
+  await rbac.seedPermissions();
 
   const port = process.env.PORT ?? 4000;
   await app.listen(port);

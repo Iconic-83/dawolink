@@ -3,6 +3,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
+import { RbacService } from "../rbac/rbac.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { AdminCreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { SetupDto } from "./dto/setup.dto";
@@ -13,6 +14,7 @@ export class PlatformService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private rbac: RbacService,
   ) {}
 
   async setup(dto: SetupDto) {
@@ -146,6 +148,10 @@ export class PlatformService {
       });
 
       return { pharmacy, branch, owner };
+    }).then(async result => {
+      // Seed default roles for the new pharmacy
+      await this.rbac.seedDefaultRoles(result.pharmacy.id);
+      return result;
     });
   }
 

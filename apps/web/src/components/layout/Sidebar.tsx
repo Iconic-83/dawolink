@@ -16,6 +16,7 @@ import {
   Building2,
   ChevronRight,
   Pill,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/expiry", label: "Expiry Alerts", icon: AlertTriangle },
   { href: "/suppliers", label: "Suppliers", icon: Truck },
   { href: "/staff", label: "Staff", icon: Users },
+  { href: "/roles", label: "Roles", icon: ShieldCheck },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/pharmacy", label: "Pharmacy", icon: Building2 },
 ];
