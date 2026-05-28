@@ -13,6 +13,7 @@ import { PharmacyModule } from "./pharmacy/pharmacy.module";
 import { PlatformModule } from "./platform/platform.module";
 import { RbacModule } from "./rbac/rbac.module";
 import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
+import { BillingModule } from "./billing/billing.module";
 
 @Module({
   controllers: [HealthController],
@@ -23,6 +24,7 @@ import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
     AuthModule,
     RbacModule,
     GlobalMedicineModule,
+    BillingModule,
     PlatformModule,
     PharmacyModule,
     InventoryModule,

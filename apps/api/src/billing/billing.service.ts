@@ -1,0 +1,146 @@
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../common/database/prisma.service";
+import { Plan } from "@dawolink/database";
+
+const PLAN_PRICES: Record<Plan, number> = {
+  STARTER: 29,
+  PROFESSIONAL: 79,
+  ENTERPRISE: 0, // custom
+};
+
+@Injectable()
+export class BillingService {
+  constructor(private prisma: PrismaService) {}
+
+  async getSubscription(pharmacyId: string) {
+    return this.prisma.subscription.findUnique({
+      where: { pharmacyId },
+      include: { invoices: { orderBy: { createdAt: "desc" }, take: 12 } },
+    });
+  }
+
+  async createSubscription(pharmacyId: string, plan: Plan, billingCycle: "MONTHLY" | "ANNUAL" = "MONTHLY") {
+    const amount = billingCycle === "ANNUAL"
+      ? PLAN_PRICES[plan] * 10  // 2 months free on annual
+      : PLAN_PRICES[plan];
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + (billingCycle === "ANNUAL" ? 12 : 1));
+
+    const subscription = await this.prisma.subscription.upsert({
+      where: { pharmacyId },
+      create: {
+        pharmacyId,
+        plan,
+        billingCycle,
+        amount,
+        status: "TRIALING",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+      update: {
+        plan,
+        billingCycle,
+        amount,
+        status: "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    // Update pharmacy plan
+    await this.prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: { plan, planExpiry: periodEnd },
+    });
+
+    return subscription;
+  }
+
+  async recordPayment(pharmacyId: string, amount: number, notes?: string) {
+    const sub = await this.prisma.subscription.findUnique({ where: { pharmacyId } });
+    if (!sub) throw new NotFoundException("No subscription found");
+
+    const invoiceNo = `INV-${Date.now()}`;
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        subscriptionId: sub.id,
+        pharmacyId,
+        invoiceNo,
+        amount,
+        status: "PAID",
+        dueDate: new Date(),
+        paidAt: new Date(),
+        notes,
+      },
+    });
+
+    // Extend subscription period
+    const newEnd = new Date(sub.currentPeriodEnd);
+    newEnd.setMonth(newEnd.getMonth() + (sub.billingCycle === "ANNUAL" ? 12 : 1));
+
+    await this.prisma.subscription.update({
+      where: { pharmacyId },
+      data: { status: "ACTIVE", currentPeriodEnd: newEnd },
+    });
+
+    return invoice;
+  }
+
+  async cancelSubscription(pharmacyId: string) {
+    return this.prisma.subscription.update({
+      where: { pharmacyId },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
+    });
+  }
+
+  // Platform admin: overview of all subscriptions
+  async getPlatformBillingOverview() {
+    const [active, trialing, pastDue, cancelled] = await Promise.all([
+      this.prisma.subscription.count({ where: { status: "ACTIVE" } }),
+      this.prisma.subscription.count({ where: { status: "TRIALING" } }),
+      this.prisma.subscription.count({ where: { status: "PAST_DUE" } }),
+      this.prisma.subscription.count({ where: { status: "CANCELLED" } }),
+    ]);
+
+    const mrr = await this.prisma.subscription.aggregate({
+      _sum: { amount: true },
+      where: { status: { in: ["ACTIVE", "TRIALING"] }, billingCycle: "MONTHLY" },
+    });
+
+    const arr = await this.prisma.subscription.aggregate({
+      _sum: { amount: true },
+      where: { status: { in: ["ACTIVE", "TRIALING"] }, billingCycle: "ANNUAL" },
+    });
+
+    const recentInvoices = await this.prisma.invoice.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: { subscription: { include: { pharmacy: { select: { name: true } } } } },
+    });
+
+    return {
+      active, trialing, pastDue, cancelled,
+      mrr: Number(mrr._sum.amount ?? 0),
+      arr: Number(arr._sum.amount ?? 0),
+      recentInvoices,
+    };
+  }
+
+  async listPharmacySubscriptions(page = 1, limit = 20) {
+    const [subscriptions, total] = await Promise.all([
+      this.prisma.subscription.findMany({
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          pharmacy: { select: { id: true, name: true, city: true } },
+          invoices: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      }),
+      this.prisma.subscription.count(),
+    ]);
+    return { subscriptions, total, page, limit };
+  }
+}

@@ -27,6 +27,48 @@ model PlatformAdmin {
 }
 
 // ─────────────────────────────────────────────
+// BILLING & SUBSCRIPTIONS
+// ─────────────────────────────────────────────
+
+model Subscription {
+  id            String             @id @default(cuid())
+  pharmacyId    String             @unique
+  plan          Plan
+  status        SubscriptionStatus @default(ACTIVE)
+  billingCycle  BillingCycle       @default(MONTHLY)
+  amount        Decimal            @db.Decimal(10, 2)
+  currency      String             @default("USD")
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  pharmacy      Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  invoices      Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  subscriptionId String
+  pharmacyId     String
+  invoiceNo      String        @unique
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(PENDING)
+  dueDate        DateTime
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+
+  @@map("invoices")
+}
+
+// ─────────────────────────────────────────────
 // DYNAMIC RBAC
 // ─────────────────────────────────────────────
 
@@ -128,12 +170,13 @@ model Pharmacy {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  branches    Branch[]
-  users       User[]
-  medicines   Medicine[]
-  suppliers   Supplier[]
-  auditLogs   AuditLog[]
-  customRoles CustomRole[]
+  branches     Branch[]
+  users        User[]
+  medicines    Medicine[]
+  suppliers    Supplier[]
+  auditLogs    AuditLog[]
+  customRoles  CustomRole[]
+  subscription Subscription?
 
   @@map("pharmacies")
 }
@@ -528,4 +571,24 @@ enum InteractionLevel {
   MODERATE
   SEVERE
   CONTRAINDICATED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+  SUSPENDED
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
 }
