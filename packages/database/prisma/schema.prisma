@@ -9,6 +9,24 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
+// PLATFORM LAYER (DawoLink Super Admins)
+// ─────────────────────────────────────────────
+
+model PlatformAdmin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("platform_admins")
+}
+
+// ─────────────────────────────────────────────
 // TENANCY & IDENTITY
 // ─────────────────────────────────────────────
 
@@ -362,7 +380,6 @@ enum Plan {
 }
 
 enum UserRole {
-  SUPER_ADMIN
   PHARMACY_OWNER
   BRANCH_MANAGER
   PHARMACIST

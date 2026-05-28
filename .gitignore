@@ -51,3 +51,5 @@ uploads
 public/uploads
 .github/workflows/
 .env*
+.vercel/output/
+.vercel-api/

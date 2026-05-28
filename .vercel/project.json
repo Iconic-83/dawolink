@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_4yr0Z6bMlGSxi7RMeUZL2ZhSWFjF",
+  "orgId": "team_tQmzULbSEWi2bOgC55O4wPdr",
+  "projectName": "dawolink-api",
+  "settings": {
+    "createdAt": 1779917966052,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": "npm install --include=dev",
+    "buildCommand": "npm install --include=dev",
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

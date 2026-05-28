@@ -86,6 +86,6 @@ export class AuthService {
   }
 
   private signToken(userId: string, pharmacyId: string, role: string) {
-    return this.jwt.sign({ sub: userId, pharmacyId, role });
+    return this.jwt.sign({ sub: userId, pharmacyId, role, actorType: "pharmacy_user" });
   }
 }

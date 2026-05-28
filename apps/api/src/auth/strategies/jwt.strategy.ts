@@ -16,7 +16,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; pharmacyId: string; role: string }) {
+  async validate(payload: { sub: string; actorType: "platform_admin" | "pharmacy_user"; pharmacyId?: string; role?: string }) {
+    if (payload.actorType === "platform_admin") {
+      const admin = await this.prisma.platformAdmin.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
+      });
+      if (!admin || !admin.isActive) throw new UnauthorizedException();
+      return { ...admin, actorType: "platform_admin" as const };
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -30,8 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         isActive: true,
       },
     });
-
     if (!user || !user.isActive) throw new UnauthorizedException();
-    return user;
+    return { ...user, actorType: "pharmacy_user" as const };
   }
 }
