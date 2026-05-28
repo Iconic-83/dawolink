@@ -24,12 +24,26 @@ export function Modal({ open, onClose, title, children, size = "md" }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={cn("bg-white rounded-2xl shadow-2xl w-full", sizes[size])} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-            <X className="h-5 w-5" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(24,13,98,0.6)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}
+    >
+      <div
+        className={cn("bg-white rounded-2xl shadow-2xl w-full", sizes[size])}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between px-6 py-4 border-b"
+          style={{ borderColor: "#E8E4FF" }}
+        >
+          <h2 className="font-semibold" style={{ color: "#2D1B8E" }}>{title}</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 transition hover:bg-brand-purple-50"
+            style={{ color: "#2D1B8E66" }}
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
         <div className="p-6">{children}</div>

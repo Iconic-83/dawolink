@@ -4,38 +4,21 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 97.5%;
+    --foreground: 249 67% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --card-foreground: 249 67% 12%;
+    --primary: 249 67% 33%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 249 20% 95%;
+    --secondary-foreground: 249 67% 33%;
+    --muted: 249 20% 96%;
+    --muted-foreground: 249 20% 45%;
+    --accent: 160 100% 39%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
-    --border: 214.3 31.8% 91.4%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --border: 217.2 32.6% 17.5%;
+    --border: 249 35% 90%;
+    --radius: 0.625rem;
   }
 }
 
@@ -44,6 +27,69 @@
 }
 
 body {
-  background: hsl(var(--background));
+  background: #F4F2FF;
   color: hsl(var(--foreground));
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2D1B8E22; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #2D1B8E55; }
+
+/* ── Brand color overrides for existing Tailwind blue classes ── */
+/* Using !important to override utility layer */
+
+.bg-blue-600 { background-color: #2D1B8E !important; }
+.bg-blue-700 { background-color: #3D2AAD !important; }
+.bg-blue-500 { background-color: #00C897 !important; }
+.bg-blue-400 { background-color: #2DDBA8 !important; }
+
+.hover\:bg-blue-700:hover { background-color: #3D2AAD !important; }
+.hover\:bg-blue-600:hover { background-color: #2D1B8E !important; }
+.hover\:bg-blue-400:hover { background-color: #2DDBA8 !important; }
+
+.text-blue-600 { color: #2D1B8E !important; }
+.text-blue-700 { color: #180D62 !important; }
+.text-blue-500 { color: #3D2AAD !important; }
+.text-blue-400 { color: #00C897 !important; }
+.text-blue-300 { color: #2DDBA8 !important; }
+.text-blue-200 { color: #7DEBCE !important; }
+.text-blue-100 { color: #CCFAEE !important; }
+
+.border-blue-800 { border-color: rgba(45,27,142,0.4) !important; }
+.border-blue-400 { border-color: #00C897 !important; }
+.border-blue-300 { border-color: #2DDBA8 !important; }
+
+.bg-blue-950 { background-color: #180D62 !important; }
+.bg-blue-900 { background-color: #1E1370 !important; }
+.bg-blue-800 { background-color: #2D1B8E !important; }
+
+.from-blue-950 { --tw-gradient-from: #180D62 !important; }
+.via-blue-900  { --tw-gradient-via: #1E1370 !important; }
+.to-blue-800   { --tw-gradient-to: #2D1B8E !important; }
+
+.hover\:bg-blue-800\/60:hover { background-color: rgba(45,27,142,0.6) !important; }
+.bg-blue-600\/20 { background-color: rgba(45,27,142,0.2) !important; }
+
+.focus\:ring-blue-400:focus { --tw-ring-color: #00C897 !important; }
+.focus\:ring-blue-500:focus { --tw-ring-color: #2D1B8E !important; }
+
+/* Table headers */
+thead th { color: #2D1B8E !important; }
+tbody tr:hover td { background-color: #F4F2FF !important; }
+
+/* Page headings auto-style */
+.text-gray-900 { color: #1a1a2e !important; }
+
+/* Stat cards and containers */
+.border-gray-100 { border-color: #E8E4FF !important; }
+.bg-gray-50 { background-color: #F4F2FF !important; }
+.bg-gray-100 { background-color: #EDE9FF !important; }
+
+/* Input focus rings */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none;
+  border-color: #00C897 !important;
+  box-shadow: 0 0 0 3px rgba(0, 200, 151, 0.15) !important;
 }

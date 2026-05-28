@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { AlertTriangle } from "lucide-react";
 
 export function ExpiryAlertsWidget() {
   const { data = [] } = useQuery<any[]>({
@@ -19,22 +20,30 @@ export function ExpiryAlertsWidget() {
   );
 
   return (
-    <div className="bg-white border rounded-xl p-4">
-      <h3 className="font-semibold text-sm mb-3">Expiry Alerts</h3>
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-brand-purple-100">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle className="h-4 w-4" style={{ color: "#2D1B8E" }} />
+        <h3 className="font-semibold text-sm" style={{ color: "#2D1B8E" }}>Expiry Alerts</h3>
+      </div>
       <div className="space-y-2">
-        <Row label="Expired" count={totals.expired} color="bg-red-100 text-red-700" />
-        <Row label="Expire &lt; 30 days" count={totals.critical} color="bg-orange-100 text-orange-700" />
-        <Row label="Expire &lt; 60 days" count={totals.warning} color="bg-yellow-100 text-yellow-700" />
+        <Row label="Expired" count={totals.expired} bg="#FEE2E2" fg="#DC2626" />
+        <Row label="Expire &lt; 30 days" count={totals.critical} bg="#FEF3C7" fg="#D97706" />
+        <Row label="Expire &lt; 60 days" count={totals.warning} bg="#FEF9C3" fg="#CA8A04" />
       </div>
     </div>
   );
 }
 
-function Row({ label, count, color }: { label: string; count: number; color: string }) {
+function Row({ label, count, bg, fg }: { label: string; count: number; bg: string; fg: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{count}</span>
+      <span
+        className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+        style={{ background: bg, color: fg }}
+      >
+        {count}
+      </span>
     </div>
   );
 }
