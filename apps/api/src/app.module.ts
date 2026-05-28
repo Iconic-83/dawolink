@@ -12,6 +12,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
 import { PharmacyModule } from "./pharmacy/pharmacy.module";
 import { PlatformModule } from "./platform/platform.module";
 import { RbacModule } from "./rbac/rbac.module";
+import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
 
 @Module({
   controllers: [HealthController],
@@ -21,6 +22,7 @@ import { RbacModule } from "./rbac/rbac.module";
     DatabaseModule,
     AuthModule,
     RbacModule,
+    GlobalMedicineModule,
     PlatformModule,
     PharmacyModule,
     InventoryModule,

@@ -72,6 +72,41 @@ model RolePermission {
 }
 
 // ─────────────────────────────────────────────
+// GLOBAL MEDICINE DATABASE (Platform-level)
+// ─────────────────────────────────────────────
+
+model GlobalMedicine {
+  id                   String   @id @default(cuid())
+  name                 String
+  genericName          String
+  brandNames           String[]          // multiple brand names
+  category             String
+  form                 MedicineForm
+  strength             String?
+  unit                 String   @default("pcs")
+  manufacturer         String?
+  countryOfOrigin      String?
+  requiresPrescription Boolean  @default(false)
+  description          String?
+  sideEffects          String?
+  contraindications    String?
+  storageConditions    String?
+  atcCode              String?           // WHO ATC classification
+  barcode              String?
+  imageUrl             String?
+  isApproved           Boolean  @default(true)
+  isFlagged            Boolean  @default(false)  // suspicious/counterfeit
+  flagReason           String?
+  createdBy            String?           // platformAdmin id
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([genericName])
+  @@index([category])
+  @@map("global_medicines")
+}
+
+// ─────────────────────────────────────────────
 // TENANCY & IDENTITY
 // ─────────────────────────────────────────────
 

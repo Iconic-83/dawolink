@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: "◉" },
   { href: "/admin/pharmacies", label: "Pharmacies", icon: "🏥" },
+  { href: "/admin/medicines", label: "Medicine DB", icon: "💊" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
