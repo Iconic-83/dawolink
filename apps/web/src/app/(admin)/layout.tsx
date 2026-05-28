@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="w-56 flex flex-col h-screen" style={{ background: "linear-gradient(180deg, #0F0845 0%, #180D62 100%)" }}>
         <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ background: "linear-gradient(135deg, #00C897, #4A8FE5)" }}>D</div>
+            <img src="/logo.png" alt="DawoLink" className="w-8 h-8 rounded-lg" style={{ objectFit: "contain" }} />
             <div>
               <div className="text-white text-sm font-bold">Dawo<span style={{ color: "#00C897" }}>Link</span></div>
               <div className="text-xs" style={{ color: "#7DEBCE" }}>Platform Admin</div>

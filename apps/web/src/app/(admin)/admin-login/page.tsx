@@ -31,9 +31,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md mx-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #00C897, #4A8FE5)" }}>
-              <span className="text-white font-bold text-lg">D</span>
-            </div>
+            <img src="/logo.png" alt="DawoLink" className="w-10 h-10 rounded-xl" style={{ objectFit: "contain" }} />
             <span className="text-2xl font-bold text-white">
               Dawo<span style={{ color: "#00C897" }}>Link</span>
             </span>
