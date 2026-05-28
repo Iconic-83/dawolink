@@ -116,7 +116,7 @@ export default function HomePage() {
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,242,255,0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(45,27,142,0.08)" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 24px", height: 64, display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src="/logo.png" alt="DawoLink" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "contain" }} />
+            <img src="/logo.png" alt="DawoLink" style={{ width: 56, height: 56, borderRadius: 10, objectFit: "contain" }} />
             <span style={{ fontWeight: 800, fontSize: 19, color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
           </div>
           <div style={{ display: "flex", gap: 36, fontSize: 14, fontWeight: 500 }}>
@@ -654,7 +654,7 @@ export default function HomePage() {
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 48, marginBottom: 48 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <img src="/logo.png" alt="DawoLink" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "contain" }} />
+                <img src="/logo.png" alt="DawoLink" style={{ width: 80, height: 80, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,200,151,0.55)) drop-shadow(0 0 4px rgba(74,143,229,0.45))" }} />
                 <span style={{ fontWeight: 800, fontSize: 18, color: "white" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
               </div>
               <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.75, maxWidth: 260, margin: "0 0 20px" }}>
