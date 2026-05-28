@@ -9,7 +9,6 @@ let cachedApp: any;
 async function bootstrap() {
   if (cachedApp) return cachedApp;
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
-  app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   const origins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
   app.enableCors({ origin: origins.length ? origins : true, credentials: true });
