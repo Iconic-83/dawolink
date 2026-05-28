@@ -1,9 +1,19 @@
 {
-  "functions": {
-    "api/[...slug].ts": {
-      "maxDuration": 30,
-      "memory": 1024,
-      "includeFiles": "node_modules/.prisma/**,packages/database/**,packages/types/**"
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/[...slug].ts",
+      "use": "@vercel/node",
+      "config": {
+        "bundle": true,
+        "maxLambdaSize": "50mb",
+        "includeFiles": [
+          "packages/**",
+          "apps/api/src/**",
+          "node_modules/.prisma/**",
+          "node_modules/@prisma/client/schema.prisma"
+        ]
+      }
     }
-  }
+  ]
 }
