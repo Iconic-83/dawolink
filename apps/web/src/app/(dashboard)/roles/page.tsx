@@ -102,7 +102,7 @@ export default function RolesPage() {
             <div className="flex flex-wrap gap-1">
               {Object.entries(
                 role.permissions.reduce((acc, rp) => {
-                  (acc[rp.permission.module] ??= 0)++;
+                  acc[rp.permission.module] = (acc[rp.permission.module] ?? 0) + 1;
                   return acc;
                 }, {} as Record<string, number>)
               ).map(([mod, count]) => (
