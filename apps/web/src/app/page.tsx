@@ -1,90 +1,72 @@
 import Link from "next/link";
 
 const FEATURES = [
-  { icon: "📦", title: "Smart Inventory", desc: "Real-time stock tracking across all branches. Auto-alerts before you run out." },
-  { icon: "💳", title: "Point of Sale", desc: "Fast checkout with barcode scanning. EVC Plus, Zaad, Sahal payment support." },
-  { icon: "⏰", title: "Expiry Tracking", desc: "Automated alerts 30, 15, and 7 days before medicine expiry. Never sell expired stock." },
-  { icon: "📊", title: "Analytics Dashboard", desc: "Revenue trends, top medicines, branch performance — all in real time." },
-  { icon: "🏪", title: "Multi-Branch", desc: "Run unlimited branches from one account. Stock transfers, unified reporting." },
-  { icon: "🤝", title: "Supplier Management", desc: "Purchase orders, supplier ratings, delivery tracking. Complete procurement cycle." },
-  { icon: "🛡️", title: "Roles & Permissions", desc: "Define exactly what each employee can see and do. Pharmacy-grade access control." },
-  { icon: "🤖", title: "AI Forecasting", desc: "Predict demand, detect shortages early. Powered by national medicine intelligence." },
-];
-
-const PLANS = [
-  {
-    name: "Starter", price: "$29", period: "/month",
-    desc: "Perfect for a single pharmacy branch",
-    features: ["1 branch", "Up to 5 staff", "Inventory + POS", "Expiry alerts", "Basic analytics"],
-    cta: "Start Free Trial", highlighted: false,
-  },
-  {
-    name: "Professional", price: "$79", period: "/month",
-    desc: "For growing multi-branch pharmacies",
-    features: ["Up to 5 branches", "Unlimited staff", "All Starter features", "Advanced analytics", "Supplier management", "Stock transfers", "Priority support"],
-    cta: "Start Free Trial", highlighted: true,
-  },
-  {
-    name: "Enterprise", price: "Custom", period: "",
-    desc: "Hospital networks & pharmacy chains",
-    features: ["Unlimited branches", "Custom roles & permissions", "API access", "Custom integrations", "Dedicated account manager", "SLA guarantee", "Custom domain"],
-    cta: "Contact Sales", highlighted: false,
-  },
+  { icon: "📦", title: "Smart Inventory", desc: "Real-time stock across all branches. Auto-alerts before you run out." },
+  { icon: "💳", title: "Point of Sale", desc: "Fast checkout with EVC Plus, Zaad, Sahal & cash support." },
+  { icon: "⏰", title: "Expiry Tracking", desc: "30/15/7 day alerts. Never sell expired medicine again." },
+  { icon: "📊", title: "Analytics", desc: "Revenue trends, top medicines, branch performance live." },
+  { icon: "🏪", title: "Multi-Branch", desc: "One account, unlimited branches. Unified stock & reporting." },
+  { icon: "🤝", title: "Supplier Management", desc: "POs, ratings, delivery tracking. Full procurement cycle." },
+  { icon: "🛡️", title: "Roles & Permissions", desc: "26 granular permissions. Define what each employee can do." },
+  { icon: "🤖", title: "AI Forecasting", desc: "Predict demand. Detect shortages before they hit." },
 ];
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen" style={{ background: "#F4F2FF" }}>
+    <div style={{ background: "#F4F2FF", minHeight: "100vh", fontFamily: "inherit" }}>
+
       {/* Nav */}
-      <nav className="sticky top-0 z-50" style={{ background: "rgba(244,242,255,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #E8E4FF" }}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ background: "linear-gradient(135deg, #2D1B8E, #4A8FE5)" }}>D</div>
-            <span className="font-bold text-lg" style={{ color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
+      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(244,242,255,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #E8E4FF" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#2D1B8E,#4A8FE5)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 16 }}>D</div>
+            <span style={{ fontWeight: 800, fontSize: 18, color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
           </div>
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: "#6B6B9A" }}>
-            <Link href="/features" className="hover:text-[#2D1B8E] transition">Features</Link>
-            <Link href="/pricing" className="hover:text-[#2D1B8E] transition">Pricing</Link>
-            <Link href="/about" className="hover:text-[#2D1B8E] transition">About</Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium px-4 py-2 rounded-xl transition" style={{ color: "#2D1B8E" }}>Sign In</Link>
-            <Link href="/login" className="text-sm font-semibold px-4 py-2 rounded-xl text-white transition" style={{ background: "linear-gradient(90deg, #2D1B8E, #3D2AAD)" }}>Get Started</Link>
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            <div style={{ display: "flex", gap: 24, fontSize: 14, fontWeight: 500 }}>
+              <Link href="/features" style={{ color: "#6B6B9A", textDecoration: "none" }}>Features</Link>
+              <Link href="/pricing" style={{ color: "#6B6B9A", textDecoration: "none" }}>Pricing</Link>
+              <Link href="/about" style={{ color: "#6B6B9A", textDecoration: "none" }}>About</Link>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Link href="/login" style={{ padding: "8px 16px", borderRadius: 10, fontSize: 14, fontWeight: 500, color: "#2D1B8E", textDecoration: "none" }}>Sign In</Link>
+              <Link href="/login" style={{ padding: "8px 18px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: "white", background: "linear-gradient(90deg,#2D1B8E,#3D2AAD)", textDecoration: "none" }}>Get Started</Link>
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative overflow-hidden py-24 px-6">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-20 left-1/4 w-96 h-96 rounded-full opacity-10" style={{ background: "#2D1B8E", filter: "blur(80px)" }} />
-          <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full opacity-10" style={{ background: "#00C897", filter: "blur(80px)" }} />
-        </div>
-        <div className="max-w-4xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium mb-6" style={{ background: "#E8E4FF", color: "#2D1B8E" }}>
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#00C897" }} />
+      <section style={{ padding: "80px 24px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 60, left: "20%", width: 400, height: 400, borderRadius: "50%", background: "#2D1B8E", opacity: 0.06, filter: "blur(80px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: 0, right: "15%", width: 320, height: 320, borderRadius: "50%", background: "#00C897", opacity: 0.07, filter: "blur(80px)", pointerEvents: "none" }} />
+        <div style={{ maxWidth: 780, margin: "0 auto", position: "relative" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#E8E4FF", borderRadius: 999, padding: "6px 16px", fontSize: 13, fontWeight: 600, color: "#2D1B8E", marginBottom: 24 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#00C897", display: "inline-block" }} />
             Built for Somalia. Designed for Africa.
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight" style={{ color: "#180D62" }}>
+          <h1 style={{ fontSize: "clamp(36px,5vw,58px)", fontWeight: 800, color: "#180D62", lineHeight: 1.15, marginBottom: 20, margin: "0 0 20px 0" }}>
             The Connected Operating Network<br />
             <span style={{ color: "#00C897" }}>for Modern Pharmacies</span>
           </h1>
-          <p className="text-xl mb-10 max-w-2xl mx-auto" style={{ color: "#6B6B9A" }}>
+          <p style={{ fontSize: 18, color: "#6B6B9A", marginBottom: 40, maxWidth: 560, margin: "0 auto 40px" }}>
             Manage inventory, process sales, track expiry, and grow your pharmacy business — all in one platform.
           </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <Link href="/login" className="px-8 py-4 rounded-xl font-semibold text-white text-lg transition" style={{ background: "linear-gradient(90deg, #2D1B8E, #3D2AAD)" }}>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link href="/login" style={{ padding: "14px 32px", borderRadius: 12, fontWeight: 700, color: "white", background: "linear-gradient(90deg,#2D1B8E,#3D2AAD)", fontSize: 16, textDecoration: "none" }}>
               Start Free Trial
             </Link>
-            <Link href="/features" className="px-8 py-4 rounded-xl font-semibold text-lg border-2 transition" style={{ borderColor: "#2D1B8E", color: "#2D1B8E" }}>
+            <Link href="/features" style={{ padding: "14px 32px", borderRadius: 12, fontWeight: 700, fontSize: 16, color: "#2D1B8E", border: "2px solid #2D1B8E", textDecoration: "none" }}>
               View Features →
             </Link>
           </div>
-          <div className="mt-16 grid grid-cols-3 gap-8 max-w-lg mx-auto">
+
+          {/* Stats */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 60, marginTop: 60 }}>
             {[["120+", "Pharmacies"], ["50K+", "Medicines Tracked"], ["2M+", "Transactions"]].map(([v, l]) => (
-              <div key={l} className="text-center">
-                <div className="text-3xl font-bold" style={{ color: "#2D1B8E" }}>{v}</div>
-                <div className="text-sm mt-1" style={{ color: "#9B9BC0" }}>{l}</div>
+              <div key={l} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 32, fontWeight: 800, color: "#2D1B8E" }}>{v}</div>
+                <div style={{ fontSize: 13, color: "#9B9BC0", marginTop: 4 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -92,59 +74,53 @@ export default function HomePage() {
       </section>
 
       {/* Features */}
-      <section className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-3" style={{ color: "#180D62" }}>Everything Your Pharmacy Needs</h2>
-            <p className="text-lg" style={{ color: "#6B6B9A" }}>From daily operations to national-scale intelligence</p>
+      <section style={{ padding: "64px 24px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: "#180D62", margin: "0 0 8px" }}>Everything Your Pharmacy Needs</h2>
+            <p style={{ color: "#6B6B9A", fontSize: 17 }}>From daily operations to national-scale intelligence</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 20 }}>
             {FEATURES.map(f => (
-              <div key={f.title} className="bg-white rounded-2xl p-6 shadow-sm" style={{ border: "1px solid #E8E4FF" }}>
-                <div className="text-3xl mb-3">{f.icon}</div>
-                <h3 className="font-semibold mb-2" style={{ color: "#180D62" }}>{f.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#6B6B9A" }}>{f.desc}</p>
+              <div key={f.title} style={{ background: "white", borderRadius: 20, padding: "24px", border: "1px solid #E8E4FF" }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>{f.icon}</div>
+                <h3 style={{ fontWeight: 700, color: "#180D62", marginBottom: 6, fontSize: 15 }}>{f.title}</h3>
+                <p style={{ fontSize: 13, color: "#6B6B9A", lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-3" style={{ color: "#180D62" }}>Simple, Transparent Pricing</h2>
-            <p className="text-lg" style={{ color: "#6B6B9A" }}>Start free. Scale as you grow.</p>
+      {/* Pricing preview */}
+      <section style={{ padding: "64px 24px", background: "white" }}>
+        <div style={{ maxWidth: 920, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: "#180D62", margin: "0 0 8px" }}>Simple, Transparent Pricing</h2>
+            <p style={{ color: "#6B6B9A", fontSize: 17 }}>Start free. Scale as you grow.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {PLANS.map(plan => (
-              <div key={plan.name} className="rounded-2xl p-7 relative"
-                style={plan.highlighted
-                  ? { background: "linear-gradient(135deg, #2D1B8E, #3D2AAD)" }
-                  : { background: "#F4F2FF", border: "1px solid #E8E4FF" }}>
-                {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-4 py-1 rounded-full" style={{ background: "#00C897", color: "white" }}>
-                    Most Popular
-                  </div>
-                )}
-                <h3 className="font-bold text-lg mb-1" style={plan.highlighted ? { color: "white" } : { color: "#180D62" }}>{plan.name}</h3>
-                <p className="text-sm mb-4" style={{ color: plan.highlighted ? "rgba(255,255,255,0.7)" : "#9B9BC0" }}>{plan.desc}</p>
-                <div className="flex items-end gap-1 mb-5">
-                  <span className="text-4xl font-bold" style={plan.highlighted ? { color: "white" } : { color: "#180D62" }}>{plan.price}</span>
-                  <span className="text-sm pb-1" style={{ color: plan.highlighted ? "rgba(255,255,255,0.6)" : "#9B9BC0" }}>{plan.period}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
+            {[
+              { name: "Starter", price: "$29", period: "/mo", features: ["1 branch", "5 staff", "Inventory + POS", "Basic analytics"], highlight: false },
+              { name: "Professional", price: "$79", period: "/mo", features: ["5 branches", "Unlimited staff", "All features", "Priority support"], highlight: true },
+              { name: "Enterprise", price: "Custom", period: "", features: ["Unlimited branches", "API access", "Custom domain", "SLA guarantee"], highlight: false },
+            ].map(p => (
+              <div key={p.name} style={{ borderRadius: 20, padding: "28px", position: "relative", background: p.highlight ? "linear-gradient(135deg,#2D1B8E,#3D2AAD)" : "#F4F2FF", border: p.highlight ? "none" : "1px solid #E8E4FF" }}>
+                {p.highlight && <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: "#00C897", color: "white", fontSize: 11, fontWeight: 700, padding: "4px 14px", borderRadius: 999 }}>Most Popular</div>}
+                <h3 style={{ fontWeight: 700, fontSize: 18, color: p.highlight ? "white" : "#180D62", marginBottom: 4 }}>{p.name}</h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 20 }}>
+                  <span style={{ fontSize: 36, fontWeight: 800, color: p.highlight ? "white" : "#180D62" }}>{p.price}</span>
+                  <span style={{ fontSize: 13, color: p.highlight ? "rgba(255,255,255,0.6)" : "#9B9BC0" }}>{p.period}</span>
                 </div>
-                <ul className="space-y-2 mb-6">
-                  {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <span style={{ color: "#00C897" }}>✓</span>
-                      <span style={plan.highlighted ? { color: "rgba(255,255,255,0.85)" } : { color: "#374151" }}>{f}</span>
+                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {p.features.map(f => (
+                    <li key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: p.highlight ? "rgba(255,255,255,0.85)" : "#374151" }}>
+                      <span style={{ color: "#00C897", fontWeight: 700 }}>✓</span> {f}
                     </li>
                   ))}
                 </ul>
-                <Link href="/login" className="block text-center py-3 rounded-xl font-semibold text-sm text-white"
-                  style={plan.highlighted ? { background: "#00C897" } : { background: "#2D1B8E" }}>
-                  {plan.cta}
+                <Link href="/login" style={{ display: "block", textAlign: "center", padding: "11px", borderRadius: 12, fontWeight: 600, fontSize: 14, color: "white", background: p.highlight ? "#00C897" : "#2D1B8E", textDecoration: "none" }}>
+                  {p.price === "Custom" ? "Contact Sales" : "Start Free Trial"}
                 </Link>
               </div>
             ))}
@@ -152,31 +128,28 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Banner */}
-      <section className="py-24 px-6" style={{ background: "linear-gradient(135deg, #180D62 0%, #2D1B8E 60%, #1A3A6E 100%)" }}>
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Ready to Transform Your Pharmacy?</h2>
-          <p className="text-xl mb-8" style={{ color: "rgba(255,255,255,0.7)" }}>Join 120+ pharmacies already using DawoLink</p>
-          <Link href="/login" className="inline-block px-10 py-4 rounded-xl font-bold text-white text-lg" style={{ background: "linear-gradient(90deg, #00C897, #009E78)" }}>
-            Get Started Free
-          </Link>
-        </div>
+      {/* CTA */}
+      <section style={{ padding: "80px 24px", background: "linear-gradient(135deg,#180D62 0%,#2D1B8E 60%,#1A3A6E 100%)", textAlign: "center" }}>
+        <h2 style={{ fontSize: 36, fontWeight: 800, color: "white", margin: "0 0 12px" }}>Ready to Transform Your Pharmacy?</h2>
+        <p style={{ fontSize: 18, color: "rgba(255,255,255,0.7)", marginBottom: 32 }}>Join 120+ pharmacies already using DawoLink</p>
+        <Link href="/login" style={{ display: "inline-block", padding: "16px 40px", borderRadius: 14, fontWeight: 700, color: "white", fontSize: 17, background: "linear-gradient(90deg,#00C897,#009E78)", textDecoration: "none" }}>
+          Get Started Free
+        </Link>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 bg-white" style={{ borderTop: "1px solid #E8E4FF" }}>
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs" style={{ background: "linear-gradient(135deg, #2D1B8E, #4A8FE5)" }}>D</div>
-            <span className="font-bold" style={{ color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
+      <footer style={{ padding: "32px 24px", background: "white", borderTop: "1px solid #E8E4FF" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#2D1B8E,#4A8FE5)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 13 }}>D</div>
+            <span style={{ fontWeight: 700, color: "#180D62" }}>Dawo<span style={{ color: "#00C897" }}>Link</span></span>
           </div>
-          <div className="flex gap-6 text-sm" style={{ color: "#9B9BC0" }}>
-            <Link href="/features">Features</Link>
-            <Link href="/pricing">Pricing</Link>
-            <Link href="/about">About</Link>
-            <Link href="/login">Login</Link>
+          <div style={{ display: "flex", gap: 24, fontSize: 13 }}>
+            {[["Features","/features"],["Pricing","/pricing"],["About","/about"],["Login","/login"]].map(([l,h]) => (
+              <Link key={l} href={h} style={{ color: "#9B9BC0", textDecoration: "none" }}>{l}</Link>
+            ))}
           </div>
-          <p className="text-sm" style={{ color: "#C4BBFF" }}>© 2026 DawoLink. Built for Somalia.</p>
+          <p style={{ fontSize: 13, color: "#C4BBFF", margin: 0 }}>© 2026 DawoLink. Built for Somalia.</p>
         </div>
       </footer>
     </div>
