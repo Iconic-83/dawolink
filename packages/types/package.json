@@ -2,8 +2,9 @@
   "name": "@dawolink/types",
   "version": "0.0.1",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./index.js",
   "exports": {
-    ".": "./src/index.ts"
-  }
+    ".": "./index.js"
+  },
+  "types": "./src/index.ts"
 }
