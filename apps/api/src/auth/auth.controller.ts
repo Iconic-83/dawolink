@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { SignupDto } from "./dto/signup.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 @ApiTags("Auth")
@@ -10,8 +11,14 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 export class AuthController {
   constructor(private auth: AuthService) {}
 
+  @Post("signup")
+  @ApiOperation({ summary: "Self-serve signup — creates pharmacy + owner + 14-day free trial" })
+  signup(@Body() dto: SignupDto) {
+    return this.auth.signup(dto);
+  }
+
   @Post("register")
-  @ApiOperation({ summary: "Register a new user" })
+  @ApiOperation({ summary: "Register a new user (requires existing pharmacyId)" })
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
   }

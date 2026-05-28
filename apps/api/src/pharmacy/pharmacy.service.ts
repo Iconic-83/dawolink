@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
+import { PLAN_LIMITS } from "../common/guards/plan.guard";
 
 @Injectable()
 export class PharmacyService {
@@ -22,6 +23,12 @@ export class PharmacyService {
   }
 
   async createBranch(pharmacyId: string, dto: CreateBranchDto) {
+    const pharmacy = await this.prisma.pharmacy.findUnique({ where: { id: pharmacyId }, select: { plan: true } });
+    const limit = PLAN_LIMITS[pharmacy?.plan ?? "STARTER"].branches;
+    const count = await this.prisma.branch.count({ where: { pharmacyId, isActive: true } });
+    if (count >= limit) {
+      throw new ForbiddenException(`Your ${pharmacy?.plan} plan allows up to ${limit} branch${limit === 1 ? "" : "es"}. Upgrade to add more.`);
+    }
     return this.prisma.branch.create({ data: { ...dto, pharmacyId } });
   }
 

@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PlatformAdminGuard } from "../platform/guards/platform-admin.guard";
 import { BillingService } from "./billing.service";
+import { SubmitPaymentDto } from "./billing.dto";
 
 @ApiTags("Billing")
 @Controller("v1/billing")
@@ -28,6 +29,18 @@ export class BillingController {
   @ApiOperation({ summary: "Cancel subscription" })
   cancel(@Req() req: any) {
     return this.billing.cancelSubscription(req.user.pharmacyId);
+  }
+
+  @Post("pay")
+  @ApiOperation({ summary: "Submit EVC/Zaad/Sahal payment to activate or upgrade subscription" })
+  submitPayment(@Req() req: any, @Body() dto: SubmitPaymentDto) {
+    return this.billing.submitPayment(req.user.pharmacyId, dto);
+  }
+
+  @Get("plans")
+  @ApiOperation({ summary: "Get available plans and pricing" })
+  getPlans() {
+    return this.billing.getPlansInfo();
   }
 
   // Platform admin billing

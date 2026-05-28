@@ -1,12 +1,26 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { Plan } from "@dawolink/database";
+import { SubmitPaymentDto } from "./billing.dto";
 
-const PLAN_PRICES: Record<Plan, number> = {
+export const PLAN_PRICES: Record<Plan, number> = {
   STARTER: 29,
   PROFESSIONAL: 79,
-  ENTERPRISE: 0, // custom
+  ENTERPRISE: 0,
 };
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  EVC_PLUS: "EVC Plus",
+  ZAAD: "Zaad",
+  SAHAL: "Sahal",
+  PREMIER_WALLET: "Premier Wallet",
+};
+
+export const PLANS_INFO = [
+  { plan: "STARTER", price: 29, priceAnnual: 290, label: "Starter", features: ["1 branch", "5 staff accounts", "Inventory + POS", "Expiry intelligence", "Basic analytics"] },
+  { plan: "PROFESSIONAL", price: 79, priceAnnual: 790, label: "Professional", features: ["Up to 5 branches", "50 staff accounts", "All features", "Supplier & PO management", "Priority support"] },
+  { plan: "ENTERPRISE", price: null, priceAnnual: null, label: "Enterprise", features: ["Unlimited branches", "Unlimited staff", "API access", "Custom domain", "SLA + dedicated support"] },
+];
 
 @Injectable()
 export class BillingService {
@@ -93,6 +107,53 @@ export class BillingService {
       where: { pharmacyId },
       data: { status: "CANCELLED", cancelledAt: new Date() },
     });
+  }
+
+  async submitPayment(pharmacyId: string, dto: SubmitPaymentDto) {
+    if (!dto.reference?.trim()) throw new BadRequestException("Payment reference is required");
+
+    const plan = (dto.plan ?? "STARTER") as Plan;
+    const cycle = dto.billingCycle ?? "MONTHLY";
+    const expectedAmount = cycle === "ANNUAL" ? PLAN_PRICES[plan] * 10 : PLAN_PRICES[plan];
+
+    if (dto.amount < expectedAmount) {
+      throw new BadRequestException(`Amount $${dto.amount} is less than the required $${expectedAmount} for ${plan} ${cycle}`);
+    }
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + (cycle === "ANNUAL" ? 12 : 1));
+
+    const sub = await this.prisma.subscription.upsert({
+      where: { pharmacyId },
+      create: { pharmacyId, plan, billingCycle: cycle, amount: dto.amount, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
+      update: { plan, billingCycle: cycle, amount: dto.amount, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
+    });
+
+    await this.prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: { plan, planExpiry: periodEnd, isActive: true },
+    });
+
+    const invoiceNo = `INV-${Date.now()}`;
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        subscriptionId: sub.id,
+        pharmacyId,
+        invoiceNo,
+        amount: dto.amount,
+        status: "PAID",
+        dueDate: now,
+        paidAt: now,
+        notes: `${PAYMENT_METHOD_LABELS[dto.method] ?? dto.method} | Ref: ${dto.reference}`,
+      },
+    });
+
+    return { subscription: sub, invoice, message: "Payment recorded. Your subscription is now active." };
+  }
+
+  getPlansInfo() {
+    return PLANS_INFO;
   }
 
   // Platform admin: overview of all subscriptions

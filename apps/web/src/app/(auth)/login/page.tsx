@@ -6,13 +6,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
-import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
 const schema = z.object({
-  email: z.string().email("Enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -35,113 +35,204 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${res.data.user.firstName}!`);
       router.push("/dashboard");
     } catch (err: any) {
-      const msg = err.response?.data?.message ?? "Login failed. Check your credentials.";
+      const msg = err.response?.data?.message ?? "Invalid email or password.";
       toast.error(msg);
     }
   };
 
   return (
-    <div
-      className="rounded-2xl p-8 shadow-2xl border border-white/15"
-      style={{ background: "rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}
-    >
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-white">Sign in to your account</h2>
-        <p className="text-sm mt-1" style={{ color: "#00C89799" }}>
-          Enter your credentials to continue
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 36 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: "#180D62", margin: "0 0 8px", lineHeight: 1.2 }}>
+          Welcome back
+        </h1>
+        <p style={{ fontSize: 14, color: "#6B6B9A", margin: 0 }}>
+          Sign in to your DawoLink account to continue.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 0, background: "#E8E4FF", borderRadius: 12, padding: 4, marginBottom: 32 }}>
+        <div style={{ flex: 1, padding: "9px 16px", borderRadius: 9, background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", textAlign: "center", fontSize: 14, fontWeight: 700, color: "#180D62" }}>
+          Sign In
+        </div>
+        <Link href="/register" style={{ flex: 1, padding: "9px 16px", borderRadius: 9, textAlign: "center", fontSize: 14, fontWeight: 500, color: "#9B9BC0", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          Create Account
+        </Link>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit(onSubmit)}>
         {/* Email */}
-        <div>
-          <label className="block text-sm font-medium text-white/80 mb-1.5">Email address</label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 7 }}>
+            Email address
+          </label>
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+            </span>
             <input
               {...register("email")}
               type="email"
               placeholder="pharmacist@clinic.so"
               autoComplete="email"
-              className="w-full pl-10 pr-4 py-3 rounded-xl text-white placeholder:text-white/30 outline-none transition"
               style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                width: "100%",
+                padding: "12px 14px 12px 42px",
+                borderRadius: 10,
+                border: errors.email ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
+                background: "white",
+                fontSize: 14,
+                color: "#180D62",
+                outline: "none",
+                boxSizing: "border-box",
+                transition: "border-color 0.15s",
               }}
-              onFocus={(e) => (e.target.style.borderColor = "#00C897")}
-              onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.15)")}
+              onFocus={e => (e.target.style.borderColor = "#2D1B8E")}
+              onBlur={e => (e.target.style.borderColor = errors.email ? "#EF4444" : "#E8E4FF")}
             />
           </div>
-          {errors.email && <p className="text-red-300 text-xs mt-1">{errors.email.message}</p>}
+          {errors.email && (
+            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{errors.email.message}</p>
+          )}
         </div>
 
         {/* Password */}
-        <div>
-          <label className="block text-sm font-medium text-white/80 mb-1.5">Password</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Password</label>
+            <button
+              type="button"
+              style={{ fontSize: 12, color: "#2D1B8E", background: "none", border: "none", cursor: "pointer", fontWeight: 600, padding: 0 }}
+            >
+              Forgot password?
+            </button>
+          </div>
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
             <input
               {...register("password")}
               type={showPw ? "text" : "password"}
-              placeholder="••••••••"
+              placeholder="Enter your password"
               autoComplete="current-password"
-              className="w-full pl-10 pr-12 py-3 rounded-xl text-white placeholder:text-white/30 outline-none transition"
               style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                width: "100%",
+                padding: "12px 44px 12px 42px",
+                borderRadius: 10,
+                border: errors.password ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
+                background: "white",
+                fontSize: 14,
+                color: "#180D62",
+                outline: "none",
+                boxSizing: "border-box",
+                transition: "border-color 0.15s",
               }}
-              onFocus={(e) => (e.target.style.borderColor = "#00C897")}
-              onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.15)")}
+              onFocus={e => (e.target.style.borderColor = "#2D1B8E")}
+              onBlur={e => (e.target.style.borderColor = errors.password ? "#EF4444" : "#E8E4FF")}
             />
             <button
               type="button"
-              onClick={() => setShowPw((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition"
+              onClick={() => setShowPw(v => !v)}
+              style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: "#9B9BC0" }}
             >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPw ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
             </button>
           </div>
-          {errors.password && <p className="text-red-300 text-xs mt-1">{errors.password.message}</p>}
+          {errors.password && (
+            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{errors.password.message}</p>
+          )}
         </div>
 
+        {/* Submit */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-3 font-semibold text-white rounded-xl transition-all flex items-center justify-center gap-2 mt-2 shadow-lg"
           style={{
-            background: isSubmitting
-              ? "linear-gradient(90deg, #009E78, #007A5E)"
-              : "linear-gradient(90deg, #00C897, #009E78)",
+            width: "100%",
+            padding: "13px",
+            borderRadius: 10,
+            border: "none",
+            background: isSubmitting ? "#009E78" : "linear-gradient(90deg,#2D1B8E,#3D2AAD)",
+            color: "white",
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: isSubmitting ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            transition: "opacity 0.15s",
           }}
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
               Signing in…
             </>
-          ) : (
-            "Sign In"
-          )}
+          ) : "Sign In"}
         </button>
       </form>
 
-      <div className="mt-6 pt-6 border-t border-white/10">
-        <div className="grid grid-cols-3 gap-2 text-center">
+      {/* Divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "28px 0" }}>
+        <div style={{ flex: 1, height: 1, background: "#E8E4FF" }} />
+        <span style={{ fontSize: 12, color: "#9B9BC0", fontWeight: 500 }}>or</span>
+        <div style={{ flex: 1, height: 1, background: "#E8E4FF" }} />
+      </div>
+
+      {/* Create account link */}
+      <p style={{ textAlign: "center", fontSize: 14, color: "#6B6B9A", margin: 0 }}>
+        Don&apos;t have an account?{" "}
+        <Link href="/register" style={{ color: "#2D1B8E", fontWeight: 700, textDecoration: "none" }}>
+          Create one free →
+        </Link>
+      </p>
+
+      {/* Role badges */}
+      <div style={{ marginTop: 36, padding: "20px", background: "white", borderRadius: 14, border: "1px solid #E8E4FF" }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "#9B9BC0", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center", margin: "0 0 14px" }}>
+          All roles use the same portal
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
           {[
             { role: "Owner", icon: "🏪" },
             { role: "Pharmacist", icon: "💊" },
             { role: "Cashier", icon: "💳" },
-          ].map((r) => (
-            <div key={r.role} className="rounded-lg py-2 px-1" style={{ background: "rgba(0,200,151,0.08)", border: "1px solid rgba(0,200,151,0.15)" }}>
-              <div className="text-lg">{r.icon}</div>
-              <div className="text-xs" style={{ color: "#00C89799" }}>{r.role}</div>
+            { role: "Manager", icon: "📊" },
+          ].map(r => (
+            <div key={r.role} style={{ background: "#F4F2FF", borderRadius: 10, padding: "10px 6px", textAlign: "center", border: "1px solid #E8E4FF" }}>
+              <div style={{ fontSize: 18, marginBottom: 4 }}>{r.icon}</div>
+              <div style={{ fontSize: 11, color: "#6B6B9A", fontWeight: 500 }}>{r.role}</div>
             </div>
           ))}
         </div>
-        <p className="text-xs text-center mt-3" style={{ color: "rgba(255,255,255,0.3)" }}>
-          All roles use the same login portal
-        </p>
       </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

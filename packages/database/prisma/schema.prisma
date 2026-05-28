@@ -170,13 +170,14 @@ model Pharmacy {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  branches     Branch[]
-  users        User[]
-  medicines    Medicine[]
-  suppliers    Supplier[]
-  auditLogs    AuditLog[]
-  customRoles  CustomRole[]
-  subscription Subscription?
+  branches       Branch[]
+  users          User[]
+  medicines      Medicine[]
+  suppliers      Supplier[]
+  auditLogs      AuditLog[]
+  customRoles    CustomRole[]
+  subscription   Subscription?
+  medicineOrders MedicineOrder[]
 
   @@map("pharmacies")
 }
@@ -354,6 +355,73 @@ model POItem {
   purchaseOrder  PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@map("po_items")
+}
+
+// ─────────────────────────────────────────────
+// MARKETPLACE USERS (B2C — public consumers)
+// Completely separate from pharmacy staff (User)
+// ─────────────────────────────────────────────
+
+model AppUser {
+  id           String    @id @default(cuid())
+  name         String
+  phone        String    @unique
+  email        String?   @unique
+  passwordHash String
+  address      String?
+  city         String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  orders       MedicineOrder[]
+
+  @@map("app_users")
+}
+
+model MedicineOrder {
+  id              String              @id @default(cuid())
+  orderNo         String              @unique
+  appUserId       String
+  pharmacyId      String
+  branchId        String?
+  status          MedicineOrderStatus @default(PENDING)
+  paymentMethod   String?
+  paymentStatus   String              @default("PENDING")
+  deliveryType    DeliveryType        @default(DELIVERY)
+  deliveryAddress String?
+  deliveryCity    String?
+  subtotal        Decimal             @db.Decimal(10, 2)
+  deliveryFee     Decimal             @default(0) @db.Decimal(10, 2)
+  total           Decimal             @db.Decimal(10, 2)
+  prescriptionUrl String?
+  notes           String?
+  confirmedAt     DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  appUser         AppUser             @relation(fields: [appUserId], references: [id])
+  pharmacy        Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  items           MedicineOrderItem[]
+
+  @@map("medicine_orders")
+}
+
+model MedicineOrderItem {
+  id           String        @id @default(cuid())
+  orderId      String
+  medicineName String
+  quantity     Int
+  unitPrice    Decimal       @db.Decimal(10, 2)
+  total        Decimal       @db.Decimal(10, 2)
+  notes        String?
+
+  order        MedicineOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("medicine_order_items")
 }
 
 // ─────────────────────────────────────────────
@@ -591,4 +659,19 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+}
+
+enum MedicineOrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum DeliveryType {
+  DELIVERY
+  PICKUP
 }
