@@ -1,0 +1,25 @@
+{
+  "name": "DawoLink — Pharmacy Platform",
+  "short_name": "DawoLink",
+  "description": "Somalia's smart pharmacy operations platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#180D62",
+  "theme_color": "#180D62",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["medical", "business", "productivity"],
+  "lang": "so"
+}

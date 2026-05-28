@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { usePosStore } from "@/store/pos.store";
 import { formatCurrency } from "@/lib/utils";
-import { X, Loader2, CheckCircle2 } from "lucide-react";
+import { X, Loader2, CheckCircle2, WifiOff } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { toast } from "sonner";
+import { db } from "@/lib/db";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const PAYMENT_METHODS = [
-  { id: "CASH", label: "Cash", icon: "💵" },
-  { id: "EVC_PLUS", label: "EVC Plus", icon: "📱" },
-  { id: "ZAAD", label: "Zaad", icon: "💚" },
-  { id: "SAHAL", label: "Sahal", icon: "🔵" },
+  { id: "CASH",           label: "Cash",    icon: "💵" },
+  { id: "EVC_PLUS",       label: "EVC Plus",icon: "📱" },
+  { id: "ZAAD",           label: "Zaad",    icon: "💚" },
+  { id: "SAHAL",          label: "Sahal",   icon: "🔵" },
   { id: "PREMIER_WALLET", label: "Premier", icon: "🟣" },
-  { id: "CREDIT", label: "Credit", icon: "📋" },
+  { id: "CREDIT",         label: "Credit",  icon: "📋" },
 ];
 
 interface Props {
@@ -26,12 +28,41 @@ interface Props {
 export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
   const { items, discount, paymentMethod, setPaymentMethod, subtotal, total, clearCart } = usePosStore();
   const user = useAuthStore((s) => s.user);
+  const { isOnline } = useOnlineStatus();
   const [amountPaid, setAmountPaid] = useState("");
   const [loading, setLoading] = useState(false);
 
   const totalAmount = total();
   const paid = parseFloat(amountPaid) || 0;
   const change = Math.max(0, paid - totalAmount);
+
+  const saveOffline = async () => {
+    const localId = `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const txItems = items.map(i => ({
+      medicineId: i.medicineId,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      discount: i.discount,
+      batchNo: i.batchNo,
+    }));
+
+    await db.offlineTransactions.add({
+      id: localId,
+      branchId,
+      items: txItems,
+      paymentMethod,
+      subtotal: subtotal(),
+      discount,
+      total: totalAmount,
+      amountPaid: paymentMethod === "CASH" ? paid : totalAmount,
+      createdAt: Date.now(),
+      synced: false,
+    });
+
+    clearCart();
+    onSuccess({ offline: true, localId, total: totalAmount, paymentMethod });
+    toast.success("Sale saved offline — will sync when internet returns", { duration: 5000 });
+  };
 
   const handleCharge = async () => {
     if (paymentMethod === "CASH" && paid < totalAmount) {
@@ -40,6 +71,13 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
     }
 
     setLoading(true);
+
+    if (!isOnline) {
+      await saveOffline();
+      setLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         type: "SALE",
@@ -60,7 +98,13 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
       onSuccess(res.data);
       toast.success(`Sale complete — Receipt ${res.data.receiptNo}`);
     } catch (err: any) {
-      toast.error(err.response?.data?.message ?? "Transaction failed");
+      // Network error even though we thought we were online — save offline
+      if (!navigator.onLine || err.code === "ERR_NETWORK") {
+        toast.warning("Connection lost — sale saved offline");
+        await saveOffline();
+      } else {
+        toast.error(err.response?.data?.message ?? "Transaction failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -71,11 +115,26 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-semibold">Complete Payment</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Complete Payment</h2>
+            {!isOnline && (
+              <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF7ED", color: "#C2410C" }}>
+                <WifiOff className="h-3 w-3" /> Offline
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Offline notice */}
+        {!isOnline && (
+          <div style={{ background: "#FFF7ED", borderBottom: "1px solid #FED7AA", padding: "10px 20px", fontSize: 13, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
+            <WifiOff className="h-4 w-4 flex-shrink-0" />
+            <span>No internet — sale will be <strong>saved locally</strong> and synced automatically when connection returns.</span>
+          </div>
+        )}
 
         <div className="p-5 space-y-5">
           {/* Order summary */}
@@ -166,10 +225,20 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
           <button
             onClick={handleCharge}
             disabled={loading || (paymentMethod === "CASH" && paid < totalAmount)}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold text-lg rounded-xl transition flex items-center justify-center gap-2"
+            className="w-full py-4 font-bold text-lg rounded-xl transition flex items-center justify-center gap-2 text-white"
+            style={{
+              background: loading || (paymentMethod === "CASH" && paid < totalAmount)
+                ? "#E5E7EB"
+                : !isOnline
+                ? "linear-gradient(90deg, #F97316, #EA580C)"
+                : "linear-gradient(90deg, #2563EB, #1D4ED8)",
+              color: loading || (paymentMethod === "CASH" && paid < totalAmount) ? "#9CA3AF" : "white",
+            }}
           >
             {loading ? (
               <><Loader2 className="h-5 w-5 animate-spin" /> Processing…</>
+            ) : !isOnline ? (
+              <><WifiOff className="h-5 w-5" /> Save Offline — {formatCurrency(totalAmount)}</>
             ) : (
               <><CheckCircle2 className="h-5 w-5" /> Charge {formatCurrency(totalAmount)}</>
             )}
