@@ -18,6 +18,7 @@ async function bootstrap() {
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  console.log('[handler] method:', req.method, 'url:', req.url);
   const app = await bootstrap();
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp(req, res);
