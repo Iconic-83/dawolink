@@ -50,3 +50,4 @@ redis-data
 uploads
 public/uploads
 .github/workflows/
+.env*
