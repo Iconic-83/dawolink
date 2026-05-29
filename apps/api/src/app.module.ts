@@ -17,6 +17,7 @@ import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
 import { BillingModule } from "./billing/billing.module";
 import { AuditModule } from "./audit/audit.module";
 import { CustomerModule } from "./customer/customer.module";
+import { MarketplaceModule } from "./marketplace/marketplace.module";
 
 @Module({
   controllers: [HealthController],
@@ -38,6 +39,7 @@ import { CustomerModule } from "./customer/customer.module";
     ExpiryModule,
     AnalyticsModule,
     CustomerModule,
+    MarketplaceModule,
   ],
 })
 export class AppModule {}

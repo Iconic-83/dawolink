@@ -1,0 +1,204 @@
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../common/database/prisma.service";
+
+@Injectable()
+export class MarketplaceService {
+  constructor(private prisma: PrismaService) {}
+
+  async searchMedicines(q: string, page = 1, limit = 20) {
+    const nameFilter = q.trim()
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { genericName: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {};
+
+    const medicines = await this.prisma.medicine.findMany({
+      where: {
+        isActive: true,
+        verificationStatus: "VERIFIED",
+        pharmacy: { isActive: true },
+        inventory: { some: { branch: { isActive: true, pharmacy: { isActive: true } } } },
+        ...nameFilter,
+      },
+      select: {
+        id: true,
+        name: true,
+        genericName: true,
+        form: true,
+        strength: true,
+        category: true,
+        requiresPrescription: true,
+        imageUrl: true,
+        inventory: {
+          where: { branch: { isActive: true } },
+          select: {
+            quantity: true,
+            reorderLevel: true,
+            sellingPrice: true,
+            branch: { select: { pharmacy: { select: { id: true } } } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    // Group by (name, form, strength) to deduplicate across pharmacies
+    const groups = new Map<string, {
+      id: string; name: string; genericName: string | null; form: string;
+      strength: string | null; category: string; requiresPrescription: boolean;
+      imageUrl: string | null; pharmacyIds: Set<string>;
+      prices: number[]; hasGoodStock: boolean; hasLowStock: boolean;
+    }>();
+
+    for (const med of medicines) {
+      const key = `${med.name.toLowerCase()}||${med.form}||${med.strength ?? ""}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: med.id, name: med.name, genericName: med.genericName,
+          form: med.form, strength: med.strength, category: med.category,
+          requiresPrescription: med.requiresPrescription, imageUrl: med.imageUrl,
+          pharmacyIds: new Set(), prices: [], hasGoodStock: false, hasLowStock: false,
+        });
+      }
+      const g = groups.get(key)!;
+      if (med.imageUrl && !g.imageUrl) g.imageUrl = med.imageUrl;
+
+      for (const inv of med.inventory) {
+        g.pharmacyIds.add(inv.branch.pharmacy.id);
+        g.prices.push(Number(inv.sellingPrice));
+        if (inv.quantity > inv.reorderLevel) g.hasGoodStock = true;
+        if (inv.quantity > 0 && inv.quantity <= inv.reorderLevel) g.hasLowStock = true;
+      }
+    }
+
+    const all = Array.from(groups.values()).map(g => ({
+      id: g.id,
+      name: g.name,
+      genericName: g.genericName,
+      form: g.form,
+      strength: g.strength,
+      category: g.category,
+      requiresPrescription: g.requiresPrescription,
+      imageUrl: g.imageUrl,
+      lowestPrice: g.prices.length ? Math.min(...g.prices) : 0,
+      pharmacyCount: g.pharmacyIds.size,
+      availability: g.hasGoodStock ? "available" : g.hasLowStock ? "low_stock" : "out_of_stock",
+    }));
+
+    const total = all.length;
+    const results = all.slice((page - 1) * limit, page * limit);
+    return { results, total, page, limit };
+  }
+
+  async getMedicineDetail(id: string) {
+    const medicine = await this.prisma.medicine.findFirst({
+      where: { id, isActive: true, verificationStatus: "VERIFIED" },
+      select: {
+        id: true, name: true, genericName: true, form: true,
+        strength: true, unit: true, category: true,
+        requiresPrescription: true, imageUrl: true, description: true,
+      },
+    });
+    if (!medicine) throw new NotFoundException("Medicine not found");
+
+    // All pharmacies that carry a medicine with the same name + form
+    const siblings = await this.prisma.medicine.findMany({
+      where: {
+        isActive: true,
+        verificationStatus: "VERIFIED",
+        form: medicine.form,
+        name: { equals: medicine.name, mode: "insensitive" },
+        pharmacy: { isActive: true },
+      },
+      select: {
+        inventory: {
+          where: { branch: { isActive: true } },
+          select: {
+            quantity: true,
+            reorderLevel: true,
+            sellingPrice: true,
+            branch: {
+              select: {
+                id: true, name: true, address: true, phone: true,
+                pharmacy: { select: { id: true, name: true, city: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Build pharmacy availability list — deduplicated, best price per pharmacy
+    const pharmacyMap = new Map<string, {
+      id: string; name: string; city: string; branchName: string;
+      branchAddress: string; phone: string | null;
+      price: number; availability: string;
+    }>();
+
+    for (const sib of siblings) {
+      for (const inv of sib.inventory) {
+        const pharId = inv.branch.pharmacy.id;
+        const avail =
+          inv.quantity === 0 ? "out_of_stock"
+          : inv.quantity <= inv.reorderLevel ? "low_stock"
+          : "available";
+        const price = Number(inv.sellingPrice);
+        const existing = pharmacyMap.get(pharId);
+        if (!existing || price < existing.price) {
+          pharmacyMap.set(pharId, {
+            id: pharId,
+            name: inv.branch.pharmacy.name,
+            city: inv.branch.pharmacy.city,
+            branchName: inv.branch.name,
+            branchAddress: inv.branch.address,
+            phone: inv.branch.phone,
+            price,
+            availability: avail,
+          });
+        }
+      }
+    }
+
+    // Enrich with GlobalMedicine data (richer medical info)
+    const globalMed = await this.prisma.globalMedicine.findFirst({
+      where: {
+        isApproved: true,
+        isFlagged: false,
+        OR: [
+          { name: { contains: medicine.name, mode: "insensitive" } },
+          { genericName: { contains: medicine.name, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        description: true, sideEffects: true,
+        contraindications: true, storageConditions: true, imageUrl: true,
+      },
+    });
+
+    const pharmacies = Array.from(pharmacyMap.values()).sort((a, b) =>
+      a.availability === "available" && b.availability !== "available" ? -1
+      : b.availability === "available" && a.availability !== "available" ? 1
+      : a.price - b.price
+    );
+
+    return {
+      id: medicine.id,
+      name: medicine.name,
+      genericName: medicine.genericName,
+      form: medicine.form,
+      strength: medicine.strength,
+      unit: medicine.unit,
+      category: medicine.category,
+      requiresPrescription: medicine.requiresPrescription,
+      imageUrl: medicine.imageUrl ?? globalMed?.imageUrl ?? null,
+      description: medicine.description ?? globalMed?.description ?? null,
+      sideEffects: globalMed?.sideEffects ?? null,
+      contraindications: globalMed?.contraindications ?? null,
+      storageConditions: globalMed?.storageConditions ?? null,
+      pharmacies,
+    };
+  }
+}
