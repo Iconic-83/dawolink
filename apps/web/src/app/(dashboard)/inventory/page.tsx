@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
@@ -43,6 +43,14 @@ export default function InventoryPage() {
     queryKey: ["branches"],
     queryFn: () => api.get("/v1/pharmacy/branches").then(r => r.data),
   });
+
+  // Auto-select first branch so stock is visible without manual selection
+  useEffect(() => {
+    if (branches.length > 0 && !selectedBranch) {
+      setSelectedBranch(branches[0].id);
+      setTab("stock");
+    }
+  }, [branches, selectedBranch]);
 
   const { data: stockItems = [], isLoading: loadingStock } = useQuery<any[]>({
     queryKey: ["stock", selectedBranch],

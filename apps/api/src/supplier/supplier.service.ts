@@ -252,19 +252,38 @@ export class SupplierService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const ri of dto.items) {
-        await tx.inventoryItem.create({
-          data: {
-            branchId: dto.branchId,
-            medicineId: ri.medicineId,
-            supplierId: order.supplierId,
-            quantity: ri.receivedQty,
-            costPrice: ri.costPrice,
-            sellingPrice: ri.sellingPrice,
-            batchNo: ri.batchNo || null,
-            expiryDate: ri.expiryDate ? new Date(ri.expiryDate) : null,
-            reorderLevel: 10,
-          },
+        // If a stock record already exists for this medicine+branch, add to it
+        const existing = await tx.inventoryItem.findFirst({
+          where: { branchId: dto.branchId, medicineId: ri.medicineId },
         });
+
+        if (existing) {
+          await tx.inventoryItem.update({
+            where: { id: existing.id },
+            data: {
+              quantity: { increment: ri.receivedQty },
+              costPrice: ri.costPrice,
+              sellingPrice: ri.sellingPrice,
+              supplierId: order.supplierId,
+              batchNo: ri.batchNo || existing.batchNo,
+              expiryDate: ri.expiryDate ? new Date(ri.expiryDate) : existing.expiryDate,
+            },
+          });
+        } else {
+          await tx.inventoryItem.create({
+            data: {
+              branchId: dto.branchId,
+              medicineId: ri.medicineId,
+              supplierId: order.supplierId,
+              quantity: ri.receivedQty,
+              costPrice: ri.costPrice,
+              sellingPrice: ri.sellingPrice,
+              batchNo: ri.batchNo || null,
+              expiryDate: ri.expiryDate ? new Date(ri.expiryDate) : null,
+              reorderLevel: 10,
+            },
+          });
+        }
 
         await tx.pOItem.update({
           where: { id: ri.poItemId },
