@@ -93,3 +93,57 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-color: #00C897 !important;
   box-shadow: 0 0 0 3px rgba(0, 200, 151, 0.15) !important;
 }
+
+/* ── Receipt print styles ── */
+@media print {
+  /* Hide everything except the receipt */
+  body > * { display: none !important; }
+
+  /* Make the receipt modal content the only visible thing */
+  #receipt-print,
+  #receipt-print * {
+    display: revert !important;
+    visibility: visible !important;
+  }
+
+  #receipt-print {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;          /* Standard thermal receipt width */
+    padding: 8mm 6mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Reset all color overrides inside the receipt */
+  #receipt-print .text-gray-900,
+  #receipt-print .text-gray-800,
+  #receipt-print .text-gray-700,
+  #receipt-print .text-gray-600,
+  #receipt-print .text-gray-500,
+  #receipt-print .text-gray-400,
+  #receipt-print h3,
+  #receipt-print p,
+  #receipt-print span,
+  #receipt-print div {
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+  }
+
+  #receipt-print .text-green-600 { color: #000 !important; }
+  #receipt-print .text-blue-600  { color: #000 !important; }
+
+  /* Dashed separator */
+  #receipt-print .border-dashed {
+    border-top: 1px dashed #000 !important;
+    margin: 4px 0 !important;
+  }
+
+  /* Offline badge — hide in print */
+  #receipt-print .bg-amber-50 { display: none !important; }
+}
