@@ -87,4 +87,42 @@ export class PlatformController {
   updatePlan(@Param("id") id: string, @Body() body: { plan: string; planExpiry?: string }) {
     return this.platform.updatePlan(id, body.plan, body.planExpiry ? new Date(body.planExpiry) : undefined);
   }
+
+  // ── Medicine Verification ──────────────────────────────────────────────────
+
+  @Get("medicines/pending/count")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Count of medicines awaiting verification" })
+  pendingCount() {
+    return this.platform.getPendingCount();
+  }
+
+  @Get("medicines/pending")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List medicines pending admin verification" })
+  listPending(
+    @Query("page") page = "1",
+    @Query("limit") limit = "30",
+    @Query("search") search?: string,
+  ) {
+    return this.platform.listPendingMedicines(+page, +limit, search);
+  }
+
+  @Patch("medicines/:id/verify")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Approve a pending medicine" })
+  verify(@Param("id") id: string) {
+    return this.platform.verifyMedicine(id);
+  }
+
+  @Patch("medicines/:id/reject")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Reject a pending medicine with reason" })
+  reject(@Param("id") id: string, @Body("notes") notes: string) {
+    return this.platform.rejectMedicine(id, notes);
+  }
 }

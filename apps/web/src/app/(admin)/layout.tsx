@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin", label: "Dashboard", icon: "◉" },
   { href: "/admin/pharmacies", label: "Pharmacies", icon: "🏥" },
   { href: "/admin/medicines", label: "Medicine DB", icon: "💊" },
+  { href: "/admin/medicines/pending", label: "Pending Verify", icon: "🕐", badge: true },
   { href: "/admin/billing", label: "Billing", icon: "💰" },
 ];
 
@@ -17,15 +18,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [admin, setAdmin] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (pathname === "/admin-login") { setLoading(false); return; }
     const token = localStorage.getItem("admin_token");
     if (!token) { router.push("/admin-login"); return; }
 
-    api.get("/v1/admin/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+    const headers = { Authorization: `Bearer ${token}` };
+
+    api.get("/v1/admin/auth/me", { headers })
       .then(r => { setAdmin(r.data); setLoading(false); })
       .catch(() => { localStorage.removeItem("admin_token"); router.push("/admin-login"); });
+
+    // Fetch pending count and refresh every 60s
+    const fetchCount = () => {
+      api.get("/v1/admin/medicines/pending/count", { headers })
+        .then(r => setPendingCount(typeof r.data === "number" ? r.data : 0))
+        .catch(() => {});
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60_000);
+    return () => clearInterval(interval);
   }, [pathname, router]);
 
   if (pathname === "/admin-login") return <>{children}</>;
@@ -54,15 +68,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav className="flex-1 px-3 py-4 space-y-1">
           {NAV.map(item => {
             const active = pathname === item.href;
+            const count = item.badge ? pendingCount : 0;
             return (
-              <Link key={item.href} href={item.href}
+              <Link
+                key={item.href}
+                href={item.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition"
                 style={active
                   ? { background: "linear-gradient(90deg, #00C897, #009E78)", color: "#fff" }
                   : { color: "rgba(255,255,255,0.6)" }
-                }>
+                }
+              >
                 <span>{item.icon}</span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge && count > 0 && (
+                  <span
+                    className="text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+                    style={active
+                      ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
+                      : { background: "#EF4444", color: "#fff" }
+                    }
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -71,8 +100,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="px-4 py-4 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
           <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Signed in as</div>
           <div className="text-white text-sm font-medium truncate">{admin?.firstName} {admin?.lastName}</div>
-          <button onClick={() => { localStorage.removeItem("admin_token"); router.push("/admin-login"); }}
-            className="mt-2 text-xs" style={{ color: "#00C897" }}>
+          <button
+            onClick={() => { localStorage.removeItem("admin_token"); router.push("/admin-login"); }}
+            className="mt-2 text-xs"
+            style={{ color: "#00C897" }}
+          >
             Sign out
           </button>
         </div>

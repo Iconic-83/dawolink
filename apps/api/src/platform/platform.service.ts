@@ -170,6 +170,53 @@ export class PlatformService {
     });
   }
 
+  // ── Medicine Verification ─────────────────────────────────────────────────
+
+  async listPendingMedicines(page = 1, limit = 30, search?: string) {
+    const where: any = {
+      verificationStatus: "PENDING_VERIFICATION",
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { genericName: { contains: search, mode: "insensitive" } },
+        ],
+      }),
+    };
+
+    const [medicines, total] = await Promise.all([
+      this.prisma.medicine.findMany({
+        where,
+        include: { pharmacy: { select: { id: true, name: true, city: true } } },
+        orderBy: { createdAt: "asc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.medicine.count({ where }),
+    ]);
+
+    return { medicines, total, page, limit, pages: Math.ceil(total / limit) };
+  }
+
+  async verifyMedicine(id: string) {
+    return this.prisma.medicine.update({
+      where: { id },
+      data: { verificationStatus: "VERIFIED", verificationNotes: null },
+      include: { pharmacy: { select: { name: true } } },
+    });
+  }
+
+  async rejectMedicine(id: string, notes: string) {
+    return this.prisma.medicine.update({
+      where: { id },
+      data: { verificationStatus: "REJECTED", verificationNotes: notes },
+      include: { pharmacy: { select: { name: true } } },
+    });
+  }
+
+  async getPendingCount() {
+    return this.prisma.medicine.count({ where: { verificationStatus: "PENDING_VERIFICATION" } });
+  }
+
   private signAdminToken(adminId: string) {
     return this.jwt.sign({ sub: adminId, actorType: "platform_admin" });
   }
