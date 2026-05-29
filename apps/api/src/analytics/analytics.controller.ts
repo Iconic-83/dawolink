@@ -31,4 +31,16 @@ export class AnalyticsController {
   getBranchComparison(@Req() req: any) {
     return this.analytics.getBranchComparison(req.user.pharmacyId);
   }
+
+  @Get("orders")
+  @ApiQuery({ name: "days", required: false, type: Number })
+  getOrderAnalytics(@Req() req: any, @Query("days") days?: string) {
+    return this.analytics.getOrderAnalytics(req.user.pharmacyId, days ? +days : 30);
+  }
+
+  @Get("orders/trend")
+  @ApiQuery({ name: "days", required: false, type: Number })
+  getOrderTrend(@Req() req: any, @Query("days") days?: string) {
+    return this.analytics.getOrderTrend(req.user.pharmacyId, days ? +days : 30);
+  }
 }

@@ -8,12 +8,16 @@ import { RevenueChart } from "@/components/analytics/RevenueChart";
 import { TopMedicinesChart } from "@/components/analytics/TopMedicinesChart";
 import { PaymentBreakdown } from "@/components/analytics/PaymentBreakdown";
 import { BranchComparison } from "@/components/analytics/BranchComparison";
+import { OnlineOrdersAnalytics } from "@/components/analytics/OnlineOrdersAnalytics";
 import { formatCurrency } from "@/lib/utils";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, RefreshCw, Store, ShoppingBag } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+type Tab = "instore" | "online";
 
 export default function AnalyticsPage() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>("instore");
   const [selectedBranch, setSelectedBranch] = useState("");
 
   const { data: branches = [] } = useQuery<any[]>({
@@ -40,12 +44,32 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
           <p className="text-sm text-gray-500 mt-0.5">Revenue, performance & trends</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Tab switcher */}
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => setTab("instore")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                tab === "instore" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Store className="h-3.5 w-3.5" /> In-Store
+            </button>
+            <button
+              onClick={() => setTab("online")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                tab === "online" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" /> Online Orders
+            </button>
+          </div>
+
           <button
             onClick={() => qc.invalidateQueries()}
             className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
@@ -53,18 +77,27 @@ export default function AnalyticsPage() {
           >
             <RefreshCw className="h-4 w-4" />
           </button>
-          <div className="relative">
-            <select
-              value={selectedBranch}
-              onChange={e => setSelectedBranch(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          </div>
+
+          {tab === "instore" && (
+            <div className="relative">
+              <select
+                value={selectedBranch}
+                onChange={e => setSelectedBranch(e.target.value)}
+                className="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Online Orders tab */}
+      {tab === "online" && <OnlineOrdersAnalytics />}
+
+      {/* In-Store tab content */}
+      {tab === "instore" && <>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -165,6 +198,8 @@ export default function AnalyticsPage() {
           })}
         </div>
       </div>
+
+      </>} {/* end tab === "instore" */}
     </div>
   );
 }
