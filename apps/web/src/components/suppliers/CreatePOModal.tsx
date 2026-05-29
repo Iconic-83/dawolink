@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 const schema = z.object({
   supplierId: z.string().min(1, "Supplier required"),
   notes: z.string().optional(),
+  expectedDeliveryDate: z.string().optional(),
   items: z.array(z.object({
     medicineName: z.string().min(1, "Medicine name required"),
     quantity: z.coerce.number().int().min(1),
@@ -71,8 +72,8 @@ export function CreatePOModal({ open, onClose, prefillSupplierId }: {
             {errors.supplierId && <p className="text-red-500 text-xs mt-1">{errors.supplierId.message}</p>}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-            <input {...register("notes")} placeholder="Delivery instructions…" className={inp()} />
+            <label className="block text-xs font-medium text-gray-600 mb-1">Expected Delivery</label>
+            <input {...register("expectedDeliveryDate")} type="date" className={inp()} />
           </div>
         </div>
 

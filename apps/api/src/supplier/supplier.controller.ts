@@ -47,4 +47,29 @@ export class SupplierController {
   receivePO(@Req() req: any, @Param("id") id: string, @Body() dto: ReceivePODto) {
     return this.suppliers.receivePO(req.user.pharmacyId, req.user.id, id, dto);
   }
+
+  @Post("purchase-orders/:id/payment")
+  recordPayment(
+    @Req() req: any,
+    @Param("id") id: string,
+    @Body("amount") amount: number,
+    @Body("invoiceNo") invoiceNo?: string,
+  ) {
+    return this.suppliers.recordPayment(req.user.pharmacyId, req.user.id, id, Number(amount), invoiceNo);
+  }
+
+  @Get(":id/summary")
+  getSupplierSummary(@Req() req: any, @Param("id") id: string) {
+    return this.suppliers.getSupplierSummary(req.user.pharmacyId, id);
+  }
+
+  @Get("debt/summary")
+  getDebtSummary(@Req() req: any) {
+    return this.suppliers.getDebtSummary(req.user.pharmacyId);
+  }
+
+  @Get("reorder/suggestions")
+  getReorderSuggestions(@Req() req: any) {
+    return this.suppliers.getReorderSuggestions(req.user.pharmacyId);
+  }
 }

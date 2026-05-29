@@ -51,6 +51,7 @@ export class SupplierService {
         orderNo,
         totalAmount: total,
         notes: dto.notes,
+        expectedDeliveryDate: dto.expectedDeliveryDate ? new Date(dto.expectedDeliveryDate) : null,
         items: { create: dto.items },
       },
       include: { items: true, supplier: true },
@@ -74,6 +75,143 @@ export class SupplierService {
       include: { supplier: true, items: true },
       orderBy: { orderedAt: "desc" },
     });
+  }
+
+  // Supplier detail: history, spend, debt, avg delivery time
+  async getSupplierSummary(pharmacyId: string, supplierId: string) {
+    const supplier = await this.prisma.supplier.findFirst({ where: { id: supplierId, pharmacyId } });
+    if (!supplier) throw new NotFoundException("Supplier not found");
+
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where: { supplierId, pharmacyId },
+      include: { items: true },
+      orderBy: { orderedAt: "desc" },
+    });
+
+    const received = orders.filter(o => o.status === "RECEIVED" || o.status === "PARTIALLY_RECEIVED");
+    const totalSpend = orders.reduce((s, o) => s + Number(o.totalAmount), 0);
+    const totalDebt = orders
+      .filter(o => o.paymentStatus !== "PAID")
+      .reduce((s, o) => s + (Number(o.totalAmount) - Number(o.amountPaid)), 0);
+
+    const deliveryTimes = received
+      .filter(o => o.receivedAt && o.orderedAt)
+      .map(o => (o.receivedAt!.getTime() - o.orderedAt.getTime()) / (1000 * 60 * 60 * 24));
+    const avgDeliveryDays = deliveryTimes.length
+      ? Math.round(deliveryTimes.reduce((s, d) => s + d, 0) / deliveryTimes.length)
+      : null;
+
+    return {
+      supplier,
+      stats: {
+        totalOrders: orders.length,
+        receivedOrders: received.length,
+        totalSpend,
+        totalDebt,
+        avgDeliveryDays,
+        fulfillmentRate: orders.length ? Math.round((received.length / orders.length) * 100) : 0,
+      },
+      recentOrders: orders.slice(0, 10),
+    };
+  }
+
+  // Debt summary across all suppliers
+  async getDebtSummary(pharmacyId: string) {
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where: { pharmacyId, paymentStatus: { not: "PAID" }, status: { in: ["RECEIVED", "PARTIALLY_RECEIVED", "CONFIRMED"] } },
+      include: { supplier: true },
+      orderBy: { orderedAt: "asc" },
+    });
+
+    const bySupplier = orders.reduce((acc: Record<string, any>, o) => {
+      const sid = o.supplierId;
+      if (!acc[sid]) {
+        acc[sid] = { supplier: o.supplier, totalDebt: 0, orders: [] };
+      }
+      acc[sid].totalDebt += Number(o.totalAmount) - Number(o.amountPaid);
+      acc[sid].orders.push(o);
+      return acc;
+    }, {});
+
+    return Object.values(bySupplier).sort((a: any, b: any) => b.totalDebt - a.totalDebt);
+  }
+
+  // Record payment against a PO
+  async recordPayment(pharmacyId: string, userId: string, orderId: string, amount: number, invoiceNo?: string) {
+    const order = await this.prisma.purchaseOrder.findFirst({ where: { id: orderId, pharmacyId } });
+    if (!order) throw new NotFoundException("Purchase order not found");
+
+    const newPaid = Number(order.amountPaid) + amount;
+    const total = Number(order.totalAmount);
+    const paymentStatus = newPaid >= total ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID";
+
+    const updated = await this.prisma.purchaseOrder.update({
+      where: { id: orderId },
+      data: {
+        amountPaid: newPaid,
+        paymentStatus: paymentStatus as any,
+        paidAt: paymentStatus === "PAID" ? new Date() : undefined,
+        supplierInvoiceNo: invoiceNo || order.supplierInvoiceNo,
+      },
+      include: { supplier: true, items: true },
+    });
+
+    this.audit.log({
+      pharmacyId, userId,
+      action: "PAYMENT_RECORDED",
+      entity: "PurchaseOrder",
+      entityId: orderId,
+      newValue: { amount, paymentStatus, orderNo: order.orderNo, totalPaid: newPaid },
+    });
+
+    return updated;
+  }
+
+  // Reorder suggestions: low-stock items + best supplier from history
+  async getReorderSuggestions(pharmacyId: string) {
+    const branches = await this.prisma.branch.findMany({
+      where: { pharmacyId, isActive: true },
+      select: { id: true },
+    });
+    const branchIds = branches.map(b => b.id);
+
+    const lowStockItems = await this.prisma.inventoryItem.findMany({
+      where: {
+        branchId: { in: branchIds },
+        quantity: { lte: this.prisma.inventoryItem.fields.reorderLevel },
+      },
+      include: { medicine: true, supplier: true },
+      orderBy: { quantity: "asc" },
+      take: 20,
+    });
+
+    // For each low-stock item, find the best supplier from order history
+    const suggestions = await Promise.all(
+      lowStockItems.map(async (item) => {
+        const lastOrder = await this.prisma.purchaseOrder.findFirst({
+          where: {
+            pharmacyId,
+            status: "RECEIVED",
+            items: { some: { medicineName: { contains: item.medicine?.name ?? "", mode: "insensitive" } } },
+          },
+          include: { supplier: true, items: true },
+          orderBy: { receivedAt: "desc" },
+        });
+
+        return {
+          medicine: item.medicine,
+          currentStock: item.quantity,
+          reorderLevel: item.reorderLevel,
+          branch: item.branchId,
+          suggestedQty: Math.max(item.reorderLevel * 3, 100),
+          lastSupplier: lastOrder?.supplier ?? item.supplier,
+          lastOrderedAt: lastOrder?.orderedAt,
+          lastUnitCost: lastOrder?.items?.[0] ? Number(lastOrder.items[0].unitCost) : null,
+        };
+      })
+    );
+
+    return suggestions.filter(s => s.medicine);
   }
 
   async updatePOStatus(pharmacyId: string, userId: string, id: string, status: string) {
