@@ -1,12 +1,18 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../common/database/prisma.service";
+import { MailService } from "../common/mail/mail.service";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class BillingCron {
   private readonly logger = new Logger(BillingCron.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+    private config: ConfigService,
+  ) {}
 
   // Runs every hour — expires TRIALING and ACTIVE subs past their period end
   @Cron(CronExpression.EVERY_HOUR)
@@ -24,16 +30,26 @@ export class BillingCron {
     if (expired.count > 0) {
       this.logger.warn(`Expired ${expired.count} subscription(s) to PAST_DUE`);
 
-      // Suspend pharmacies whose subscription just expired
+      // Suspend pharmacies and notify them
       const expiredSubs = await this.prisma.subscription.findMany({
         where: { status: "PAST_DUE", currentPeriodEnd: { lt: now } },
-        select: { pharmacyId: true },
+        include: { pharmacy: { select: { id: true, name: true, email: true } } },
       });
 
       await this.prisma.pharmacy.updateMany({
         where: { id: { in: expiredSubs.map(s => s.pharmacyId) } },
         data: { isActive: false },
       });
+
+      const upgradeUrl = `${this.config.get<string>("FRONTEND_URL", "https://dawolink.com")}/billing`;
+      for (const sub of expiredSubs) {
+        if (!sub.pharmacy.email) continue;
+        this.mail.sendSubscriptionExpired({
+          to: sub.pharmacy.email,
+          pharmacyName: sub.pharmacy.name,
+          upgradeUrl,
+        });
+      }
     }
   }
 
@@ -53,10 +69,19 @@ export class BillingCron {
       include: { pharmacy: { select: { name: true, email: true } } },
     });
 
+    const upgradeUrl = `${this.config.get<string>("FRONTEND_URL", "https://dawolink.com")}/billing`;
+
     for (const sub of expiringSoon) {
       const daysLeft = Math.ceil((new Date(sub.currentPeriodEnd).getTime() - Date.now()) / 86400000);
       this.logger.log(`Trial warning: ${sub.pharmacy.name} (${sub.pharmacy.email}) — ${daysLeft} day(s) left`);
-      // TODO: send SMS/email via Waafi/Hormuud when SMS module is wired
+
+      if (!sub.pharmacy.email) continue;
+      this.mail.sendTrialExpiring({
+        to: sub.pharmacy.email,
+        pharmacyName: sub.pharmacy.name,
+        daysLeft,
+        upgradeUrl,
+      });
     }
   }
 }

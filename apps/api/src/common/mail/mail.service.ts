@@ -91,4 +91,120 @@ export class MailService implements OnModuleInit {
       `,
     }).catch(err => this.log.error(`Failed to send invite email to ${opts.to}: ${err.message}`));
   }
+
+  async sendTrialExpiring(opts: {
+    to: string;
+    pharmacyName: string;
+    daysLeft: number;
+    upgradeUrl: string;
+  }) {
+    if (!this.transporter) return;
+
+    const urgency = opts.daysLeft <= 1 ? "🚨 Last day" : `⏳ ${opts.daysLeft} days left`;
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: opts.to,
+      subject: `${urgency} — Your DawoLink trial is ending soon`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff">
+          <div style="text-align:center;margin-bottom:32px">
+            <h1 style="font-size:24px;font-weight:800;color:#180D62;margin:0">
+              Dawo<span style="color:#00C897">Link</span>
+            </h1>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#FFF7ED,#FEF3C7);border:1px solid #FCD34D;border-radius:16px;padding:24px;margin-bottom:24px;text-align:center">
+            <p style="font-size:32px;margin:0 0 8px">${opts.daysLeft <= 1 ? "🚨" : "⏳"}</p>
+            <h2 style="font-size:22px;color:#92400E;margin:0 0 6px">
+              ${opts.daysLeft <= 1 ? "Your trial ends today" : `${opts.daysLeft} days left in your trial`}
+            </h2>
+            <p style="color:#B45309;margin:0;font-size:14px">
+              ${opts.pharmacyName} · DawoLink Free Trial
+            </p>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px">
+            Hi <strong>${opts.pharmacyName}</strong>,<br/><br/>
+            Your 14-day free trial is ending in <strong>${opts.daysLeft} day${opts.daysLeft !== 1 ? "s" : ""}</strong>.
+            After it expires, your account will be suspended and your staff won't be able to access the system.
+          </p>
+
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px">
+            Upgrade now to keep your pharmacy running — inventory, POS, expiry tracking, and your full team stay active.
+          </p>
+
+          <div style="text-align:center;margin:32px 0">
+            <a href="${opts.upgradeUrl}"
+               style="display:inline-block;padding:16px 36px;background:linear-gradient(90deg,#00C897,#009E78);color:#fff;font-weight:700;font-size:16px;border-radius:12px;text-decoration:none">
+              Upgrade Now — Keep Access
+            </a>
+          </div>
+
+          <div style="background:#F4F2FF;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+            <p style="font-size:13px;font-weight:700;color:#180D62;margin:0 0 10px">Plans start at $29/month:</p>
+            <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.8">
+              <li><strong>Starter</strong> — $29/mo · 1 branch · 5 staff · Full POS + inventory</li>
+              <li><strong>Professional</strong> — $79/mo · 5 branches · 50 staff · All features</li>
+            </ul>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #EDE9FF;margin:24px 0"/>
+          <p style="color:#C4B5FD;font-size:12px;text-align:center">
+            DawoLink · Pharmacy Management Platform · Somalia
+          </p>
+        </div>
+      `,
+    }).catch(err => this.log.error(`Failed to send trial expiry email to ${opts.to}: ${err.message}`));
+  }
+
+  async sendSubscriptionExpired(opts: {
+    to: string;
+    pharmacyName: string;
+    upgradeUrl: string;
+  }) {
+    if (!this.transporter) return;
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: opts.to,
+      subject: `Your DawoLink account has been suspended — reactivate now`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff">
+          <div style="text-align:center;margin-bottom:32px">
+            <h1 style="font-size:24px;font-weight:800;color:#180D62;margin:0">
+              Dawo<span style="color:#00C897">Link</span>
+            </h1>
+          </div>
+
+          <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:16px;padding:24px;margin-bottom:24px;text-align:center">
+            <p style="font-size:32px;margin:0 0 8px">🔒</p>
+            <h2 style="font-size:22px;color:#991B1B;margin:0 0 6px">Account Suspended</h2>
+            <p style="color:#B91C1C;margin:0;font-size:14px">${opts.pharmacyName}</p>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px">
+            Your DawoLink subscription has expired and your account has been suspended.
+            Your data is safe and intact — you just need to reactivate your subscription to regain access.
+          </p>
+
+          <div style="text-align:center;margin:32px 0">
+            <a href="${opts.upgradeUrl}"
+               style="display:inline-block;padding:16px 36px;background:linear-gradient(90deg,#180D62,#2D1B8E);color:#fff;font-weight:700;font-size:16px;border-radius:12px;text-decoration:none">
+              Reactivate My Account
+            </a>
+          </div>
+
+          <p style="color:#6B7280;font-size:13px;text-align:center">
+            Need help? Reply to this email or contact support.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #EDE9FF;margin:24px 0"/>
+          <p style="color:#C4B5FD;font-size:12px;text-align:center">
+            DawoLink · Pharmacy Management Platform · Somalia
+          </p>
+        </div>
+      `,
+    }).catch(err => this.log.error(`Failed to send suspension email to ${opts.to}: ${err.message}`));
+  }
 }
