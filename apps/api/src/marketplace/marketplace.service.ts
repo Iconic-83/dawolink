@@ -4,6 +4,8 @@ import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PushService } from "../push/push.service";
+import { MailService } from "../common/mail/mail.service";
+import { ConfigService } from "@nestjs/config";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
@@ -15,6 +17,8 @@ export class MarketplaceService {
     private jwt: JwtService,
     private notifications: NotificationsService,
     private push: PushService,
+    private mail: MailService,
+    private config: ConfigService,
   ) {}
 
   // ── Customer Auth ─────────────────────────────────────────────────────────
@@ -260,7 +264,7 @@ export class MarketplaceService {
   async createOrder(appUserId: string, dto: CreateOrderDto) {
     const pharmacy = await this.prisma.pharmacy.findUnique({
       where: { id: dto.pharmacyId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, name: true, email: true },
     });
     if (!pharmacy || !pharmacy.isActive) throw new NotFoundException("Pharmacy not found");
 
@@ -310,7 +314,7 @@ export class MarketplaceService {
       data: { url: `/shop/orders/${order.id}` },
     }).catch(() => {/* non-critical */});
 
-    // Notify connected pharmacy staff immediately
+    // Notify connected pharmacy staff immediately via SSE
     this.notifications.emit(dto.pharmacyId, "new_order", {
       id: order.id,
       orderNo: order.orderNo,
@@ -319,6 +323,21 @@ export class MarketplaceService {
       itemCount: order.items.length,
       deliveryType: order.deliveryType,
     });
+
+    // Email pharmacy in case staff aren't logged in
+    if (pharmacy.email) {
+      const dashboardUrl = `${this.config.get<string>("FRONTEND_URL", "https://dawolink.com")}/orders`;
+      this.mail.sendNewOrderNotification({
+        to: pharmacy.email,
+        pharmacyName: pharmacy.name,
+        orderNo: order.orderNo,
+        customerName: order.appUser?.name ?? "Customer",
+        total: Number(order.total),
+        itemCount: order.items.length,
+        deliveryType: order.deliveryType ?? "DELIVERY",
+        dashboardUrl,
+      });
+    }
 
     return order;
   }

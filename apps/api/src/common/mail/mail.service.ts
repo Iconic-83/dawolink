@@ -207,4 +207,74 @@ export class MailService implements OnModuleInit {
       `,
     }).catch(err => this.log.error(`Failed to send suspension email to ${opts.to}: ${err.message}`));
   }
+
+  async sendNewOrderNotification(opts: {
+    to: string;
+    pharmacyName: string;
+    orderNo: string;
+    customerName: string;
+    total: number;
+    itemCount: number;
+    deliveryType: string;
+    dashboardUrl: string;
+  }) {
+    if (!this.transporter) return;
+
+    const deliveryLabel = opts.deliveryType === "PICKUP" ? "Pickup" : "Delivery";
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: opts.to,
+      subject: `New Order ${opts.orderNo} — ${opts.pharmacyName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff">
+          <div style="text-align:center;margin-bottom:24px">
+            <h1 style="font-size:24px;font-weight:800;color:#180D62;margin:0">
+              Dawo<span style="color:#00C897">Link</span>
+            </h1>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#F0FDF4,#DCFCE7);border:1px solid #86EFAC;border-radius:16px;padding:20px 24px;margin-bottom:24px">
+            <p style="font-size:13px;color:#166534;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em">New Order Received</p>
+            <p style="font-size:28px;font-weight:800;color:#15803D;margin:0">${opts.orderNo}</p>
+          </div>
+
+          <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#6B7280;font-size:14px">Customer</td>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#111827;font-size:14px;font-weight:600;text-align:right">${opts.customerName}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#6B7280;font-size:14px">Items</td>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#111827;font-size:14px;font-weight:600;text-align:right">${opts.itemCount} item${opts.itemCount !== 1 ? "s" : ""}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#6B7280;font-size:14px">Type</td>
+              <td style="padding:10px 0;border-bottom:1px solid #F3F4F6;color:#111827;font-size:14px;font-weight:600;text-align:right">${deliveryLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 0;color:#6B7280;font-size:14px">Total</td>
+              <td style="padding:10px 0;color:#180D62;font-size:18px;font-weight:800;text-align:right">$${opts.total.toFixed(2)}</td>
+            </tr>
+          </table>
+
+          <div style="text-align:center;margin:28px 0">
+            <a href="${opts.dashboardUrl}"
+               style="display:inline-block;padding:14px 32px;background:linear-gradient(90deg,#180D62,#2D1B8E);color:#fff;font-weight:700;font-size:15px;border-radius:12px;text-decoration:none">
+              View &amp; Confirm Order
+            </a>
+          </div>
+
+          <p style="color:#9CA3AF;font-size:12px;text-align:center">
+            Confirm promptly to keep your customers happy.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #EDE9FF;margin:24px 0"/>
+          <p style="color:#C4B5FD;font-size:12px;text-align:center">
+            DawoLink · Pharmacy Management Platform · Somalia
+          </p>
+        </div>
+      `,
+    }).catch(err => this.log.error(`Failed to send order notification to ${opts.to}: ${err.message}`));
+  }
 }
