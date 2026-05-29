@@ -17,7 +17,7 @@ export class PosController {
     @Req() req: any,
     @Body() dto: CreateTransactionDto,
   ) {
-    return this.pos.createTransaction(branchId, req.user.id, dto);
+    return this.pos.createTransaction(branchId, req.user.id, req.user.pharmacyId, dto);
   }
 
   @Get("branches/:branchId/transactions")

@@ -1,13 +1,26 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import { CreateTransactionDto } from "./dto/create-transaction.dto";
 import { Decimal } from "@prisma/client/runtime/library";
 
 @Injectable()
 export class PosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
-  async createTransaction(branchId: string, userId: string, dto: CreateTransactionDto) {
+  async createTransaction(branchId: string, userId: string, pharmacyId: string, dto: CreateTransactionDto) {
+    // Deduplicate offline transactions that get retried during sync
+    if (dto.offlineId) {
+      const existing = await this.prisma.transaction.findUnique({
+        where: { offlineId: dto.offlineId },
+        include: { items: { include: { medicine: true } }, customer: true },
+      });
+      if (existing) return existing;
+    }
+
     const receiptNo = `RX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     let subtotal = 0;
@@ -52,6 +65,7 @@ export class PosService {
           amountPaid: dto.amountPaid,
           change,
           notes: dto.notes,
+          offlineId: dto.offlineId,
           items: { create: enrichedItems },
         },
         include: { items: { include: { medicine: true } }, customer: true },
@@ -75,6 +89,21 @@ export class PosService {
       }
 
       return created;
+    });
+
+    this.audit.log({
+      pharmacyId,
+      userId,
+      action: "SALE",
+      entity: "Transaction",
+      entityId: transaction.id,
+      newValue: {
+        receiptNo: transaction.receiptNo,
+        total: Number(transaction.total),
+        paymentMethod: transaction.paymentMethod,
+        itemCount: transaction.items.length,
+        offlineId: dto.offlineId,
+      },
     });
 
     return transaction;

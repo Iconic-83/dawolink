@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { toast } from "sonner";
 import { db } from "@/lib/db";
+import { deductLocalStock } from "@/lib/sync";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const PAYMENT_METHODS = [
@@ -58,6 +59,9 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
       createdAt: Date.now(),
       synced: false,
     });
+
+    // Deduct stock locally so subsequent offline sales reflect correct stock
+    await deductLocalStock(branchId, txItems.map(i => ({ medicineId: i.medicineId, quantity: i.quantity })));
 
     clearCart();
     onSuccess({ offline: true, localId, total: totalAmount, paymentMethod });

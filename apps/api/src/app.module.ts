@@ -15,6 +15,7 @@ import { PlatformModule } from "./platform/platform.module";
 import { RbacModule } from "./rbac/rbac.module";
 import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
 import { BillingModule } from "./billing/billing.module";
+import { AuditModule } from "./audit/audit.module";
 
 @Module({
   controllers: [HealthController],
@@ -23,6 +24,7 @@ import { BillingModule } from "./billing/billing.module";
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     DatabaseModule,
+    AuditModule,
     AuthModule,
     RbacModule,
     GlobalMedicineModule,

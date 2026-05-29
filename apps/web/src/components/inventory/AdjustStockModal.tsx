@@ -3,18 +3,22 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { db } from "@/lib/db";
+import { queueMutation } from "@/lib/sync";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "sonner";
-import { Loader2, Minus, Plus } from "lucide-react";
+import { Loader2, Minus, Plus, WifiOff } from "lucide-react";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  item: { id: string; medicineName: string; quantity: number; branchId: string } | null;
+  item: { id: string; medicineName: string; quantity: number; branchId: string; medicineId?: string } | null;
 }
 
 export function AdjustStockModal({ open, onClose, item }: Props) {
   const qc = useQueryClient();
+  const { isOnline } = useOnlineStatus();
   const [adj, setAdj] = useState(0);
   const [reason, setReason] = useState("");
 
@@ -29,8 +33,38 @@ export function AdjustStockModal({ open, onClose, item }: Props) {
       setReason("");
       onClose();
     },
-    onError: (err: any) => toast.error(err.response?.data?.message ?? "Adjustment failed"),
+    onError: async (err: any) => {
+      if (!navigator.onLine || err.code === "ERR_NETWORK") {
+        await saveOffline();
+      } else {
+        toast.error(err.response?.data?.message ?? "Adjustment failed");
+      }
+    },
   });
+
+  const saveOffline = async () => {
+    await queueMutation("/v1/inventory/adjust", "POST", { itemId: item!.id, adjustment: adj });
+    // Update local Dexie stock so POS reflects the change offline
+    if (item?.medicineId && item.branchId) {
+      const key = `${item.medicineId}:${item.branchId}`;
+      const med = await db.medicines.get(key);
+      if (med) {
+        await db.medicines.update(key, { stock: Math.max(0, med.stock + adj) });
+      }
+    }
+    toast.success(`Adjustment queued — will sync when internet returns`);
+    setAdj(0);
+    setReason("");
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!isOnline) {
+      await saveOffline();
+      return;
+    }
+    mutate();
+  };
 
   if (!item) return null;
 
@@ -39,6 +73,13 @@ export function AdjustStockModal({ open, onClose, item }: Props) {
   return (
     <Modal open={open} onClose={onClose} title="Adjust Stock" size="sm">
       <div className="space-y-5">
+        {!isOnline && (
+          <div className="flex items-center gap-2 bg-orange-50 text-orange-700 rounded-xl px-4 py-2.5 text-sm">
+            <WifiOff className="h-4 w-4 flex-shrink-0" />
+            <span>Offline — adjustment will be queued and synced automatically.</span>
+          </div>
+        )}
+
         <div className="bg-gray-50 rounded-xl p-4">
           <p className="text-sm font-semibold text-gray-900">{item.medicineName}</p>
           <p className="text-xs text-gray-500 mt-0.5">Current stock: <span className="font-medium text-gray-700">{item.quantity} units</span></p>
@@ -81,12 +122,12 @@ export function AdjustStockModal({ open, onClose, item }: Props) {
         <div className="flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
           <button
-            onClick={() => mutate()}
+            onClick={handleSubmit}
             disabled={isPending || adj === 0 || newQty < 0}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2 disabled:opacity-50"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Apply Adjustment
+            {!isOnline ? "Queue Adjustment" : "Apply Adjustment"}
           </button>
         </div>
       </div>

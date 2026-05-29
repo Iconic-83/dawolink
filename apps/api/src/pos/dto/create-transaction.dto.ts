@@ -70,4 +70,9 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  offlineId?: string;
 }

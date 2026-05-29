@@ -3,6 +3,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { SignupDto } from "./dto/signup.dto";
@@ -13,6 +14,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -75,6 +77,18 @@ export class AuthService {
 
     const token = this.signToken(user.id, user.pharmacyId, user.role);
 
+    if (user.pharmacyId) {
+      this.audit.log({
+        pharmacyId: user.pharmacyId,
+        userId: user.id,
+        action: "LOGIN",
+        entity: "User",
+        entityId: user.id,
+        newValue: { email: user.email, role: user.role },
+        ipAddress: dto.ipAddress,
+      });
+    }
+
     const { passwordHash: _, ...safeUser } = user;
     return { user: safeUser, token };
   }
@@ -121,6 +135,16 @@ export class AuthService {
     });
 
     const token = this.signToken(result.user.id, result.user.pharmacyId!, result.user.role);
+
+    this.audit.log({
+      pharmacyId: result.user.pharmacyId!,
+      userId: result.user.id,
+      action: "SIGNUP",
+      entity: "Pharmacy",
+      entityId: result.pharmacy.id,
+      newValue: { pharmacyName: result.pharmacy.name, plan: "STARTER", trialEndsAt: trialEnd },
+    });
+
     return { user: result.user, pharmacy: result.pharmacy, trialEndsAt: trialEnd, token };
   }
 

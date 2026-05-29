@@ -281,7 +281,7 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 text-xs text-gray-400 font-mono">{item.batchNo ?? "—"}</td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => setAdjustItem({ id: item.id, medicineName: item.medicine?.name, quantity: item.quantity, branchId: selectedBranch })}
+                            onClick={() => setAdjustItem({ id: item.id, medicineName: item.medicine?.name, quantity: item.quantity, branchId: selectedBranch, medicineId: item.medicine?.id })}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             title="Adjust stock"
                           >

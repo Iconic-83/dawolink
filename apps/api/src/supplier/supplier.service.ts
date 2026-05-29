@@ -1,14 +1,29 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import { CreateSupplierDto } from "./dto/create-supplier.dto";
 import { CreatePurchaseOrderDto } from "./dto/create-purchase-order.dto";
 
 @Injectable()
 export class SupplierService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
-  create(pharmacyId: string, dto: CreateSupplierDto) {
-    return this.prisma.supplier.create({ data: { ...dto, pharmacyId } });
+  async create(pharmacyId: string, userId: string, dto: CreateSupplierDto) {
+    const supplier = await this.prisma.supplier.create({ data: { ...dto, pharmacyId } });
+
+    this.audit.log({
+      pharmacyId,
+      userId,
+      action: "SUPPLIER_CREATED",
+      entity: "Supplier",
+      entityId: supplier.id,
+      newValue: { name: supplier.name, contactName: supplier.contactName },
+    });
+
+    return supplier;
   }
 
   findAll(pharmacyId: string) {
@@ -24,11 +39,11 @@ export class SupplierService {
     return supplier;
   }
 
-  async createPurchaseOrder(pharmacyId: string, dto: CreatePurchaseOrderDto) {
+  async createPurchaseOrder(pharmacyId: string, userId: string, dto: CreatePurchaseOrderDto) {
     const orderNo = `PO-${Date.now()}`;
     const total = dto.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
 
-    return this.prisma.purchaseOrder.create({
+    const order = await this.prisma.purchaseOrder.create({
       data: {
         supplierId: dto.supplierId,
         pharmacyId,
@@ -39,6 +54,17 @@ export class SupplierService {
       },
       include: { items: true, supplier: true },
     });
+
+    this.audit.log({
+      pharmacyId,
+      userId,
+      action: "PURCHASE_ORDER_CREATED",
+      entity: "PurchaseOrder",
+      entityId: order.id,
+      newValue: { orderNo, totalAmount: total, supplierName: order.supplier?.name, itemCount: dto.items.length },
+    });
+
+    return order;
   }
 
   getPurchaseOrders(pharmacyId: string) {

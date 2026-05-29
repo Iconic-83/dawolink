@@ -14,7 +14,7 @@ export class SupplierController {
 
   @Post()
   create(@Req() req: any, @Body() dto: CreateSupplierDto) {
-    return this.suppliers.create(req.user.pharmacyId, dto);
+    return this.suppliers.create(req.user.pharmacyId, req.user.id, dto);
   }
 
   @Get()
@@ -29,7 +29,7 @@ export class SupplierController {
 
   @Post("purchase-orders")
   createOrder(@Req() req: any, @Body() dto: CreatePurchaseOrderDto) {
-    return this.suppliers.createPurchaseOrder(req.user.pharmacyId, dto);
+    return this.suppliers.createPurchaseOrder(req.user.pharmacyId, req.user.id, dto);
   }
 
   @Get("purchase-orders/all")

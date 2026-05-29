@@ -1,7 +1,9 @@
 import Dexie, { type Table } from "dexie";
 
 export interface LocalMedicine {
-  id: string;
+  id: string;          // composite: `${medicineId}:${branchId}`
+  medicineId: string;  // medicine.id — used for POS addItem
+  inventoryId: string; // inventoryItem.id — used for adjust queue
   name: string;
   barcode?: string;
   unitPrice: number;
@@ -47,6 +49,11 @@ class DawoLinkDB extends Dexie {
     super("dawolink_offline");
     this.version(1).stores({
       medicines: "id, branchId, pharmacyId, barcode, syncedAt",
+      syncQueue: "++id, status, createdAt",
+      offlineTransactions: "id, branchId, synced, createdAt",
+    });
+    this.version(2).stores({
+      medicines: "id, medicineId, inventoryId, branchId, pharmacyId, barcode, syncedAt",
       syncQueue: "++id, status, createdAt",
       offlineTransactions: "id, branchId, synced, createdAt",
     });

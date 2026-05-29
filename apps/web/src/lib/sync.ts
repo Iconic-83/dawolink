@@ -16,9 +16,12 @@ function emit(status: SyncStatus, count?: number) {
 
 export async function processSyncQueue(): Promise<{ synced: number; failed: number }> {
   const pending = await db.syncQueue.where("status").equals("pending").toArray();
-  if (!pending.length) return { synced: 0, failed: 0 };
+  if (!pending.length) {
+    // Still check offline transactions
+  } else {
+    emit("syncing", pending.length);
+  }
 
-  emit("syncing", pending.length);
   let synced = 0;
   let failed = 0;
 
@@ -38,6 +41,10 @@ export async function processSyncQueue(): Promise<{ synced: number; failed: numb
 
   // Sync offline POS transactions
   const unsyncedTx = await db.offlineTransactions.where("synced").equals(0).toArray();
+  if (unsyncedTx.length > 0 && pending.length === 0) {
+    emit("syncing", unsyncedTx.length);
+  }
+
   for (const tx of unsyncedTx) {
     try {
       await api.post(`/v1/pos/branches/${tx.branchId}/transactions`, {
@@ -51,7 +58,14 @@ export async function processSyncQueue(): Promise<{ synced: number; failed: numb
       await db.offlineTransactions.update(tx.id, { synced: true, syncedAt: Date.now() });
       synced++;
     } catch (err: any) {
-      failed++;
+      // 409/unique constraint = already synced on server, mark done
+      const status = err?.response?.status;
+      if (status === 409 || status === 400) {
+        await db.offlineTransactions.update(tx.id, { synced: true, syncedAt: Date.now() });
+        synced++;
+      } else {
+        failed++;
+      }
     }
   }
 
@@ -83,16 +97,34 @@ export async function getPendingCount(): Promise<number> {
 }
 
 export async function cacheMedicines(medicines: any[], branchId: string, pharmacyId: string) {
-  const records = medicines.map(m => ({
-    id: m.id,
-    name: m.medicine?.name ?? m.name,
-    barcode: m.medicine?.barcode ?? m.barcode,
-    unitPrice: Number(m.sellingPrice ?? m.unitPrice ?? 0),
-    stock: Number(m.quantity ?? m.stock ?? 0),
-    batchNo: m.batchNo,
-    branchId,
-    pharmacyId,
-    syncedAt: Date.now(),
-  }));
+  const records = medicines.map(m => {
+    const medicineId = m.medicine?.id ?? m.medicineId ?? m.id;
+    return {
+      id: `${medicineId}:${branchId}`,
+      medicineId,
+      inventoryId: m.id,
+      name: m.medicine?.name ?? m.name,
+      barcode: m.medicine?.barcode ?? m.barcode,
+      unitPrice: Number(m.sellingPrice ?? m.unitPrice ?? 0),
+      stock: Number(m.quantity ?? m.stock ?? 0),
+      batchNo: m.batchNo,
+      branchId,
+      pharmacyId,
+      syncedAt: Date.now(),
+    };
+  });
   await db.medicines.bulkPut(records);
+}
+
+export async function deductLocalStock(
+  branchId: string,
+  items: { medicineId: string; quantity: number }[],
+) {
+  for (const item of items) {
+    const key = `${item.medicineId}:${branchId}`;
+    const med = await db.medicines.get(key);
+    if (med) {
+      await db.medicines.update(key, { stock: Math.max(0, med.stock - item.quantity) });
+    }
+  }
 }

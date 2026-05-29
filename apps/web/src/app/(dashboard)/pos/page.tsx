@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePosStore } from "@/store/pos.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -11,6 +11,7 @@ import { ReceiptModal } from "@/components/pos/ReceiptModal";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { ShoppingCart, Trash2, ChevronDown, Tag } from "lucide-react";
+import { useCachePrimer } from "@/hooks/useCachePrimer";
 
 export default function PosPage() {
   const user = useAuthStore((s) => s.user);
@@ -25,7 +26,15 @@ export default function PosPage() {
     enabled: !!user,
   });
 
+  // Auto-select first branch when branches load
+  useEffect(() => {
+    if (branches.length > 0 && !selectedBranch) {
+      setSelectedBranch(branches[0].id);
+    }
+  }, [branches, selectedBranch]);
+
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
+  useCachePrimer(selectedBranch);
 
   return (
     <div className="flex gap-0 -m-6 h-[calc(100vh-0px)] min-h-0">
@@ -55,7 +64,7 @@ export default function PosPage() {
 
         {/* Search */}
         <div className="px-6 pt-4 pb-3">
-          <MedicineSearch />
+          <MedicineSearch branchId={selectedBranch} />
         </div>
 
         {/* Quick stats */}

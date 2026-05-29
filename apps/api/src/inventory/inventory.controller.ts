@@ -13,8 +13,8 @@ export class InventoryController {
   constructor(private inventory: InventoryService) {}
 
   @Post("branches/:branchId/items")
-  addItem(@Param("branchId") branchId: string, @Body() dto: CreateInventoryItemDto) {
-    return this.inventory.addItem(branchId, dto);
+  addItem(@Req() req: any, @Param("branchId") branchId: string, @Body() dto: CreateInventoryItemDto) {
+    return this.inventory.addItem(branchId, req.user.id, req.user.pharmacyId, dto);
   }
 
   @Get("branches/:branchId/items")
@@ -32,8 +32,8 @@ export class InventoryController {
   }
 
   @Post("adjust")
-  adjustStock(@Body() dto: StockAdjustmentDto) {
-    return this.inventory.adjustStock(dto.itemId.split(":")[0], dto);
+  adjustStock(@Req() req: any, @Body() dto: StockAdjustmentDto) {
+    return this.inventory.adjustStock(req.user.id, req.user.pharmacyId, dto);
   }
 
   @Get("branches/:branchId/value")

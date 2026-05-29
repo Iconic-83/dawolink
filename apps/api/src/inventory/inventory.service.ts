@@ -1,17 +1,32 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import { CreateInventoryItemDto } from "./dto/create-inventory-item.dto";
 import { StockAdjustmentDto } from "./dto/stock-adjustment.dto";
 
 @Injectable()
 export class InventoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
-  async addItem(branchId: string, dto: CreateInventoryItemDto) {
-    return this.prisma.inventoryItem.create({
+  async addItem(branchId: string, userId: string, pharmacyId: string, dto: CreateInventoryItemDto) {
+    const item = await this.prisma.inventoryItem.create({
       data: { ...dto, branchId },
       include: { medicine: true },
     });
+
+    this.audit.log({
+      pharmacyId,
+      userId,
+      action: "STOCK_ADDED",
+      entity: "InventoryItem",
+      entityId: item.id,
+      newValue: { medicineName: item.medicine?.name, quantity: dto.quantity, branchId },
+    });
+
+    return item;
   }
 
   async getBranchStock(branchId: string, lowStockOnly = false) {
@@ -39,19 +54,32 @@ export class InventoryService {
     return items;
   }
 
-  async adjustStock(branchId: string, dto: StockAdjustmentDto) {
-    const item = await this.prisma.inventoryItem.findFirst({
-      where: { id: dto.itemId, branchId },
+  async adjustStock(userId: string, pharmacyId: string, dto: StockAdjustmentDto) {
+    const item = await this.prisma.inventoryItem.findUnique({
+      where: { id: dto.itemId },
+      include: { medicine: true },
     });
     if (!item) throw new NotFoundException("Inventory item not found");
 
     const newQty = item.quantity + dto.adjustment;
     if (newQty < 0) throw new BadRequestException("Stock cannot go below zero");
 
-    return this.prisma.inventoryItem.update({
+    const updated = await this.prisma.inventoryItem.update({
       where: { id: dto.itemId },
       data: { quantity: newQty },
     });
+
+    this.audit.log({
+      pharmacyId,
+      userId,
+      action: "STOCK_ADJUSTED",
+      entity: "InventoryItem",
+      entityId: item.id,
+      oldValue: { quantity: item.quantity },
+      newValue: { quantity: newQty, adjustment: dto.adjustment, medicineName: item.medicine?.name },
+    });
+
+    return updated;
   }
 
   async getStockValue(branchId: string) {
