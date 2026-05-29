@@ -19,6 +19,7 @@ import { AuditModule } from "./audit/audit.module";
 import { CustomerModule } from "./customer/customer.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
 import { OrderModule } from "./order/order.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   controllers: [HealthController],
@@ -40,6 +41,7 @@ import { OrderModule } from "./order/order.module";
     ExpiryModule,
     AnalyticsModule,
     CustomerModule,
+    NotificationsModule,
     MarketplaceModule,
     OrderModule,
   ],

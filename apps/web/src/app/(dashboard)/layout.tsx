@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
+import { OrderNotificationListener } from "@/components/layout/OrderNotificationListener";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="p-6 max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
+      <OrderNotificationListener />
     </div>
   );
 }

@@ -1,18 +1,32 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Patch, Param, Query, Body, UseGuards, Req, Sse, MessageEvent } from "@nestjs/common";
 import { ApiTags, ApiBearerAuth, ApiQuery } from "@nestjs/swagger";
+import { Observable } from "rxjs";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtStreamGuard } from "./guards/jwt-stream.guard";
 import { OrderService } from "./order.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @ApiTags("Orders")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("v1/orders")
 export class OrderController {
-  constructor(private orders: OrderService) {}
+  constructor(
+    private orders: OrderService,
+    private notifications: NotificationsService,
+  ) {}
 
   @Get("stats")
   stats(@Req() req: any) {
     return this.orders.getStats(req.user.pharmacyId);
+  }
+
+  /** SSE endpoint — EventSource can't send headers so we accept token via ?token= */
+  @Get("stream")
+  @Sse()
+  @UseGuards(JwtStreamGuard)
+  stream(@Req() req: any): Observable<MessageEvent> {
+    return this.notifications.getStream(req.user.pharmacyId);
   }
 
   @Get()

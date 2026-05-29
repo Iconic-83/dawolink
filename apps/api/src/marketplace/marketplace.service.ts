@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, UnauthorizedException
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
@@ -11,6 +12,7 @@ export class MarketplaceService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private notifications: NotificationsService,
   ) {}
 
   // ── Customer Auth ─────────────────────────────────────────────────────────
@@ -292,7 +294,18 @@ export class MarketplaceService {
       include: {
         items: true,
         pharmacy: { select: { id: true, name: true, city: true } },
+        appUser: { select: { name: true } },
       },
+    });
+
+    // Notify connected pharmacy staff immediately
+    this.notifications.emit(dto.pharmacyId, "new_order", {
+      id: order.id,
+      orderNo: order.orderNo,
+      customerName: order.appUser?.name ?? "Customer",
+      total: Number(order.total),
+      itemCount: order.items.length,
+      deliveryType: order.deliveryType,
     });
 
     return order;
