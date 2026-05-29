@@ -83,7 +83,7 @@ export class PharmacyController {
 
   @Get("staff")
   getStaff(@Req() req: any) {
-    return this.pharmacy.getStaff(req.user.pharmacyId);
+    return this.pharmacy.getStaff(req.user.pharmacyId, req.user.role, req.user.branchId);
   }
 
   @Patch("staff/:id")

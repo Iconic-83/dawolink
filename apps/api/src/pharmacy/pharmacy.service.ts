@@ -60,9 +60,15 @@ export class PharmacyService {
     });
   }
 
-  async getStaff(pharmacyId: string) {
+  async getStaff(pharmacyId: string, actorRole?: string, actorBranchId?: string) {
     return this.prisma.user.findMany({
-      where: { pharmacyId },
+      where: {
+        pharmacyId,
+        // Branch managers only see their own branch
+        ...(actorRole === "BRANCH_MANAGER" && actorBranchId
+          ? { branchId: actorBranchId }
+          : {}),
+      },
       select: {
         id: true, firstName: true, lastName: true,
         email: true, phone: true, role: true,
