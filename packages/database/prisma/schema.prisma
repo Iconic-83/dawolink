@@ -248,22 +248,24 @@ model Session {
 // ─────────────────────────────────────────────
 
 model Medicine {
-  id              String   @id @default(cuid())
-  pharmacyId      String
-  name            String
-  genericName     String?
-  barcode         String?
-  sku             String?
-  category        String
-  form            MedicineForm
-  strength        String?
-  unit            String   @default("pcs")
-  requiresPrescription Boolean @default(false)
-  description     String?
-  imageUrl        String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String             @id @default(cuid())
+  pharmacyId         String
+  name               String
+  genericName        String?
+  barcode            String?
+  sku                String?
+  category           String
+  form               MedicineForm
+  strength           String?
+  unit               String             @default("pcs")
+  requiresPrescription Boolean          @default(false)
+  description        String?
+  imageUrl           String?
+  isActive           Boolean            @default(true)
+  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verificationNotes  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   pharmacy        Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   inventory       InventoryItem[]
@@ -688,4 +690,10 @@ enum MedicineOrderStatus {
 enum DeliveryType {
   DELIVERY
   PICKUP
+}
+
+enum VerificationStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
 }

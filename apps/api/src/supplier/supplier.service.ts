@@ -250,11 +250,29 @@ export class SupplierService {
       return poItem && ri.receivedQty >= poItem.quantity;
     });
 
+    const newMedicinesCreated: string[] = [];
+
     await this.prisma.$transaction(async (tx) => {
       for (const ri of dto.items) {
-        // If a stock record already exists for this medicine+branch, add to it
+        // Resolve medicineId — use existing or create inline (PENDING_VERIFICATION)
+        let medicineId = ri.medicineId;
+
+        if (!medicineId && ri.newMedicine) {
+          const created = await tx.medicine.create({
+            data: {
+              ...ri.newMedicine,
+              pharmacyId,
+              verificationStatus: "PENDING_VERIFICATION",
+            },
+          });
+          medicineId = created.id;
+          newMedicinesCreated.push(created.name);
+        }
+
+        if (!medicineId) throw new BadRequestException("Each item must have medicineId or newMedicine");
+
         const existing = await tx.inventoryItem.findFirst({
-          where: { branchId: dto.branchId, medicineId: ri.medicineId },
+          where: { branchId: dto.branchId, medicineId },
         });
 
         if (existing) {
@@ -273,7 +291,7 @@ export class SupplierService {
           await tx.inventoryItem.create({
             data: {
               branchId: dto.branchId,
-              medicineId: ri.medicineId,
+              medicineId,
               supplierId: order.supplierId,
               quantity: ri.receivedQty,
               costPrice: ri.costPrice,
@@ -310,9 +328,10 @@ export class SupplierService {
         itemCount: dto.items.length,
         branchId: dto.branchId,
         fullyReceived: allQtyMet,
+        newMedicinesCreated,
       },
     });
 
-    return { success: true, fullyReceived: allQtyMet };
+    return { success: true, fullyReceived: allQtyMet, newMedicinesCreated };
   }
 }

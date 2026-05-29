@@ -1,12 +1,58 @@
 import { Type } from "class-transformer";
-import { IsArray, IsNumber, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import {
+  IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min,
+  ValidateIf, ValidateNested,
+} from "class-validator";
+import { MedicineForm } from "@dawolink/database";
+
+class InlineMedicineDto {
+  @IsString()
+  name: string;
+
+  @IsString()
+  category: string;
+
+  @IsEnum(MedicineForm)
+  form: MedicineForm;
+
+  @IsOptional()
+  @IsString()
+  genericName?: string;
+
+  @IsOptional()
+  @IsString()
+  strength?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresPrescription?: boolean;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
 
 class ReceiveItemDto {
   @IsString()
   poItemId: string;
 
+  // Either medicineId OR newMedicine must be provided
+  @ValidateIf(o => !o.newMedicine)
   @IsString()
-  medicineId: string;
+  medicineId?: string;
+
+  @ValidateIf(o => !o.medicineId)
+  @ValidateNested()
+  @Type(() => InlineMedicineDto)
+  newMedicine?: InlineMedicineDto;
 
   @IsNumber()
   @Min(1)
