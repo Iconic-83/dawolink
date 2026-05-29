@@ -13,7 +13,14 @@ export class InventoryService {
 
   async addItem(branchId: string, userId: string, pharmacyId: string, dto: CreateInventoryItemDto) {
     const item = await this.prisma.inventoryItem.create({
-      data: { ...dto, branchId },
+      data: {
+        ...dto,
+        branchId,
+        supplierId: dto.supplierId || null,
+        batchNo: dto.batchNo || null,
+        location: dto.location || null,
+        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
+      },
       include: { medicine: true },
     });
 
