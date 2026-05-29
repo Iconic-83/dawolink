@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body, Param, Query,
+  Controller, Get, Post, Patch, Body, Param, Query,
   UseGuards, Req, HttpCode, HttpStatus,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from "@nestjs/swagger";
@@ -8,6 +8,7 @@ import { MarketplaceService } from "./marketplace.service";
 import { CustomerGuard } from "./guards/customer.guard";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
+import { CreateOrderDto } from "./dto/create-order.dto";
 
 @ApiTags("Marketplace")
 @Controller("v1/marketplace")
@@ -57,5 +58,39 @@ export class MarketplaceController {
   @ApiOperation({ summary: "Medicine detail with pharmacy availability (public)" })
   detail(@Param("id") id: string) {
     return this.service.getMedicineDetail(id);
+  }
+
+  // ── Orders ────────────────────────────────────────────────────────────────
+
+  @Post("orders")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Place a medicine order" })
+  createOrder(@Req() req: any, @Body() dto: CreateOrderDto) {
+    return this.service.createOrder(req.user.id, dto);
+  }
+
+  @Get("orders")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get my orders" })
+  getMyOrders(@Req() req: any) {
+    return this.service.getMyOrders(req.user.id);
+  }
+
+  @Get("orders/:id")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get single order detail" })
+  getOrder(@Req() req: any, @Param("id") id: string) {
+    return this.service.getOrderById(req.user.id, id);
+  }
+
+  @Patch("orders/:id/cancel")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Cancel a pending order" })
+  cancelOrder(@Req() req: any, @Param("id") id: string) {
+    return this.service.cancelOrder(req.user.id, id);
   }
 }

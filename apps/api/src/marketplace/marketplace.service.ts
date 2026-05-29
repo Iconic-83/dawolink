@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
+import { CreateOrderDto } from "./dto/create-order.dto";
 
 @Injectable()
 export class MarketplaceService {
@@ -248,5 +249,93 @@ export class MarketplaceService {
       storageConditions: globalMed?.storageConditions ?? null,
       pharmacies,
     };
+  }
+
+  // ── Orders ────────────────────────────────────────────────────────────────
+
+  async createOrder(appUserId: string, dto: CreateOrderDto) {
+    const pharmacy = await this.prisma.pharmacy.findUnique({
+      where: { id: dto.pharmacyId },
+      select: { id: true, isActive: true },
+    });
+    if (!pharmacy || !pharmacy.isActive) throw new NotFoundException("Pharmacy not found");
+
+    const subtotal = dto.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+    const deliveryFee = dto.deliveryType === "DELIVERY" ? 2.0 : 0;
+    const total = subtotal + deliveryFee;
+    const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}`;
+
+    const order = await this.prisma.medicineOrder.create({
+      data: {
+        orderNo,
+        appUserId,
+        pharmacyId: dto.pharmacyId,
+        branchId: dto.branchId,
+        deliveryType: dto.deliveryType,
+        deliveryAddress: dto.deliveryAddress,
+        deliveryCity: dto.deliveryCity,
+        paymentMethod: dto.paymentMethod,
+        paymentStatus: "PENDING",
+        subtotal,
+        deliveryFee,
+        total,
+        notes: dto.notes,
+        items: {
+          create: dto.items.map(i => ({
+            medicineName: i.medicineName,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            total: i.quantity * i.unitPrice,
+          })),
+        },
+      },
+      include: {
+        items: true,
+        pharmacy: { select: { id: true, name: true, city: true } },
+      },
+    });
+
+    return order;
+  }
+
+  async getMyOrders(appUserId: string) {
+    return this.prisma.medicineOrder.findMany({
+      where: { appUserId },
+      include: {
+        items: true,
+        pharmacy: { select: { id: true, name: true, city: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async getOrderById(appUserId: string, orderId: string) {
+    const order = await this.prisma.medicineOrder.findFirst({
+      where: { id: orderId, appUserId },
+      include: {
+        items: true,
+        pharmacy: { select: { id: true, name: true, city: true, phone: true } },
+      },
+    });
+    if (!order) throw new NotFoundException("Order not found");
+    return order;
+  }
+
+  async cancelOrder(appUserId: string, orderId: string) {
+    const order = await this.prisma.medicineOrder.findFirst({
+      where: { id: orderId, appUserId },
+    });
+    if (!order) throw new NotFoundException("Order not found");
+    if (order.status !== "PENDING") {
+      throw new BadRequestException("Only pending orders can be cancelled");
+    }
+    return this.prisma.medicineOrder.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
+      include: {
+        items: true,
+        pharmacy: { select: { id: true, name: true, city: true } },
+      },
+    });
   }
 }

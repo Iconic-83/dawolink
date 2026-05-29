@@ -42,6 +42,10 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {user ? (
               <>
+                <Link href="/shop/orders" style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textDecoration: "none" }}>
+                  Orders
+                </Link>
+                <span style={{ color: "rgba(255,255,255,0.3)" }}>·</span>
                 <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
                   Hi, <strong style={{ color: "#fff" }}>{user.name.split(" ")[0]}</strong>
                 </span>
