@@ -14,8 +14,8 @@ export function useCachePrimer(branchId: string) {
     if (lastPrimed.current === branchId) return;
     lastPrimed.current = branchId;
 
-    api.get(`/v1/inventory/branches/${branchId}/items`)
-      .then(r => cacheMedicines(r.data, branchId, user?.pharmacyId ?? ""))
+    api.get(`/v1/inventory/branches/${branchId}/items?limit=200`)
+      .then(r => cacheMedicines(r.data?.items ?? r.data, branchId, user?.pharmacyId ?? ""))
       .catch(() => {});
   }, [branchId, user?.pharmacyId]);
 }

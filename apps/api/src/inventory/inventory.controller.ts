@@ -19,11 +19,22 @@ export class InventoryController {
 
   @Get("branches/:branchId/items")
   @ApiQuery({ name: "lowStock", required: false, type: Boolean })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
   getBranchStock(
     @Param("branchId") branchId: string,
     @Query("lowStock") lowStock?: string,
+    @Query("search") search?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
-    return this.inventory.getBranchStock(branchId, lowStock === "true");
+    return this.inventory.getBranchStock(branchId, {
+      lowStockOnly: lowStock === "true",
+      search,
+      page: page ? parseInt(page) : 1,
+      limit: Math.min(parseInt(limit ?? "50"), 200),
+    });
   }
 
   @Get("branches/:branchId/low-stock")

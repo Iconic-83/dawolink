@@ -36,17 +36,31 @@ export class InventoryService {
     return item;
   }
 
-  async getBranchStock(branchId: string, lowStockOnly = false) {
-    return this.prisma.inventoryItem.findMany({
-      where: {
-        branchId,
-        ...(lowStockOnly && {
-          quantity: { lte: this.prisma.inventoryItem.fields.reorderLevel },
-        }),
-      },
-      include: { medicine: true, supplier: true },
-      orderBy: { medicine: { name: "asc" } },
-    });
+  async getBranchStock(
+    branchId: string,
+    opts: { lowStockOnly?: boolean; search?: string; page?: number; limit?: number } = {},
+  ) {
+    const { lowStockOnly = false, search, page = 1, limit = 50 } = opts;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      branchId,
+      ...(lowStockOnly && { quantity: { lte: this.prisma.inventoryItem.fields.reorderLevel } }),
+      ...(search && { medicine: { name: { contains: search, mode: "insensitive" } } }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.inventoryItem.findMany({
+        where,
+        include: { medicine: true, supplier: true },
+        orderBy: { medicine: { name: "asc" } },
+        skip,
+        take: limit,
+      }),
+      this.prisma.inventoryItem.count({ where }),
+    ]);
+
+    return { items, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   async getLowStock(branchId: string) {

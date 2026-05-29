@@ -27,6 +27,8 @@ export default function InventoryPage() {
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<Tab>("catalog");
   const [search, setSearch] = useState("");
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockPage, setStockPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [showAddMed, setShowAddMed] = useState(false);
@@ -52,11 +54,18 @@ export default function InventoryPage() {
     }
   }, [branches, selectedBranch]);
 
-  const { data: stockItems = [], isLoading: loadingStock } = useQuery<any[]>({
-    queryKey: ["stock", selectedBranch],
-    queryFn: () => api.get(`/v1/inventory/branches/${selectedBranch}/items`).then(r => r.data),
+  const { data: stockData, isLoading: loadingStock } = useQuery<any>({
+    queryKey: ["stock", selectedBranch, stockSearch, stockPage],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(stockPage), limit: "50" });
+      if (stockSearch) params.set("search", stockSearch);
+      return api.get(`/v1/inventory/branches/${selectedBranch}/items?${params}`).then(r => r.data);
+    },
     enabled: !!selectedBranch,
   });
+  const stockItems: any[] = stockData?.items ?? [];
+  const stockTotal: number = stockData?.total ?? 0;
+  const stockPages: number = stockData?.pages ?? 1;
 
   const { data: stockValue } = useQuery<any>({
     queryKey: ["stock-value", selectedBranch],
@@ -67,10 +76,6 @@ export default function InventoryPage() {
   const categories = Array.from(new Set(medicines.map((m: any) => m.category as string))).sort();
   const filteredMeds = medicines.filter((m: any) =>
     (!categoryFilter || m.category === categoryFilter)
-  );
-
-  const filteredStock = stockItems.filter((item: any) =>
-    !search || item.medicine?.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   const lowStockCount = stockItems.filter((i: any) => i.quantity <= i.reorderLevel).length;
@@ -106,7 +111,7 @@ export default function InventoryPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Total Medicines", value: medicines.length, icon: "💊" },
-          { label: "Stock Items", value: stockItems.length, icon: "📦" },
+          { label: "Stock Items", value: stockTotal || stockItems.length, icon: "📦" },
           { label: "Low Stock", value: lowStockCount, icon: "⚠️" },
           { label: "Stock Value", value: formatCurrency(stockValue?.totalValue ?? 0), icon: "💰" },
         ].map(s => (
@@ -158,12 +163,23 @@ export default function InventoryPage() {
             )}
 
             {tab === "stock" && (
-              <div className="relative">
-                <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                  {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              </div>
+              <>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    value={stockSearch}
+                    onChange={e => { setStockSearch(e.target.value); setStockPage(1); }}
+                    placeholder="Search stock…"
+                    className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+                  />
+                </div>
+                <div className="relative">
+                  <select value={selectedBranch} onChange={e => { setSelectedBranch(e.target.value); setStockPage(1); }} className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -243,8 +259,8 @@ export default function InventoryPage() {
         {/* ── STOCK TAB ── */}
         {tab === "stock" && (
           <>
-            {loadingStock ? <PageSpinner /> : filteredStock.length === 0 ? (
-              <EmptyState icon="📦" title="No stock items" sub="Add stock for this branch" />
+            {loadingStock ? <PageSpinner /> : stockItems.length === 0 ? (
+              <EmptyState icon="📦" title="No stock items" sub={stockSearch ? "No results for that search" : "Add stock for this branch"} />
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
@@ -261,7 +277,7 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredStock.map((item: any) => {
+                  {stockItems.map((item: any) => {
                     const expiring = item.expiryDate && new Date(item.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                     return (
                       <tr key={item.id} className={`hover:bg-gray-50/60 transition-colors ${item.quantity === 0 ? "opacity-60" : ""}`}>
@@ -301,6 +317,28 @@ export default function InventoryPage() {
                   })}
                 </tbody>
               </table>
+            )}
+            {/* Pagination */}
+            {stockPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm text-gray-500">
+                <span>{stockTotal} items · page {stockPage} of {stockPages}</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setStockPage(p => Math.max(1, p - 1))}
+                    disabled={stockPage === 1}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 transition text-xs font-medium"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setStockPage(p => Math.min(stockPages, p + 1))}
+                    disabled={stockPage === stockPages}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 transition text-xs font-medium"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             )}
           </>
         )}
