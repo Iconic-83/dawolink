@@ -1,22 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { ClipboardList, Search, ChevronDown } from "lucide-react";
+import { ClipboardList, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 
-const ENTITY_OPTIONS = ["", "Transaction", "InventoryItem", "Supplier", "PurchaseOrder", "User", "Pharmacy"];
-const ACTION_OPTIONS = ["", "LOGIN", "SIGNUP", "SALE", "STOCK_ADDED", "STOCK_ADJUSTED", "SUPPLIER_CREATED", "PURCHASE_ORDER_CREATED"];
+const ENTITY_OPTIONS = ["", "Transaction", "InventoryItem", "Supplier", "PurchaseOrder", "User", "Branch", "Pharmacy", "StaffInvite"];
+const ACTION_OPTIONS = [
+  "", "LOGIN", "SIGNUP", "SALE", "STOCK_ADDED", "STOCK_ADJUSTED",
+  "SUPPLIER_CREATED", "PURCHASE_ORDER_CREATED", "PO_RECEIVED", "PO_STATUS_UPDATED", "PAYMENT_RECORDED",
+  "STAFF_UPDATED", "STAFF_DEACTIVATED", "STAFF_REACTIVATED", "STAFF_INVITED", "INVITE_REVOKED",
+  "BRANCH_CREATED", "BRANCH_UPDATED", "BRANCH_DEACTIVATED", "PHARMACY_UPDATED",
+];
 
 const ACTION_META: Record<string, { label: string; variant: "success" | "info" | "warning" | "danger" | "default" | "muted" }> = {
-  LOGIN:                    { label: "Login",           variant: "info" },
-  SIGNUP:                   { label: "Signup",          variant: "success" },
-  SALE:                     { label: "Sale",            variant: "success" },
-  STOCK_ADDED:              { label: "Stock Added",     variant: "info" },
-  STOCK_ADJUSTED:           { label: "Stock Adjusted",  variant: "warning" },
-  SUPPLIER_CREATED:         { label: "Supplier Added",  variant: "default" },
-  PURCHASE_ORDER_CREATED:   { label: "Purchase Order",  variant: "default" },
+  LOGIN:                  { label: "Login",             variant: "info" },
+  SIGNUP:                 { label: "Signup",            variant: "success" },
+  SALE:                   { label: "Sale",              variant: "success" },
+  STOCK_ADDED:            { label: "Stock Added",       variant: "info" },
+  STOCK_ADJUSTED:         { label: "Stock Adjusted",    variant: "warning" },
+  SUPPLIER_CREATED:       { label: "Supplier Added",    variant: "default" },
+  PURCHASE_ORDER_CREATED: { label: "Purchase Order",    variant: "default" },
+  PO_RECEIVED:            { label: "PO Received",       variant: "success" },
+  PO_STATUS_UPDATED:      { label: "PO Status",         variant: "info" },
+  PAYMENT_RECORDED:       { label: "Payment",           variant: "success" },
+  STAFF_UPDATED:          { label: "Staff Updated",     variant: "warning" },
+  STAFF_DEACTIVATED:      { label: "Staff Deactivated", variant: "danger" },
+  STAFF_REACTIVATED:      { label: "Staff Reactivated", variant: "success" },
+  STAFF_INVITED:          { label: "Invite Sent",       variant: "info" },
+  INVITE_REVOKED:         { label: "Invite Revoked",    variant: "warning" },
+  BRANCH_CREATED:         { label: "Branch Created",    variant: "success" },
+  BRANCH_UPDATED:         { label: "Branch Updated",    variant: "info" },
+  BRANCH_DEACTIVATED:     { label: "Branch Disabled",   variant: "danger" },
+  PHARMACY_UPDATED:       { label: "Profile Updated",   variant: "default" },
 };
 
 function ActionBadge({ action }: { action: string }) {
@@ -131,9 +148,8 @@ export default function AuditLogsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {logs.map((log: any) => (
-                <>
+                <Fragment key={log.id}>
                   <tr
-                    key={log.id}
                     className="hover:bg-gray-50/60 transition-colors cursor-pointer"
                     onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                   >
@@ -173,7 +189,7 @@ export default function AuditLogsPage() {
                   </tr>
 
                   {expanded === log.id && (
-                    <tr key={`${log.id}-detail`} className="bg-gray-50">
+                    <tr className="bg-gray-50">
                       <td colSpan={6} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-xs">
                           <div>
@@ -211,7 +227,7 @@ export default function AuditLogsPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

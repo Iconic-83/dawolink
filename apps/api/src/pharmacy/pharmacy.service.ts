@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, ConflictException } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import { PrismaService } from "../common/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
@@ -14,6 +15,7 @@ import { PLAN_LIMITS } from "../common/guards/plan.guard";
 export class PharmacyService {
   constructor(
     private prisma: PrismaService,
+    private audit: AuditService,
     private mail: MailService,
   ) {}
 
@@ -30,14 +32,25 @@ export class PharmacyService {
     return pharmacy;
   }
 
-  async createBranch(pharmacyId: string, dto: CreateBranchDto) {
+  async createBranch(pharmacyId: string, actorId: string, dto: CreateBranchDto) {
     const pharmacy = await this.prisma.pharmacy.findUnique({ where: { id: pharmacyId }, select: { plan: true } });
     const limit = PLAN_LIMITS[pharmacy?.plan ?? "STARTER"].branches;
     const count = await this.prisma.branch.count({ where: { pharmacyId, isActive: true } });
     if (count >= limit) {
       throw new ForbiddenException(`Your ${pharmacy?.plan} plan allows up to ${limit} branch${limit === 1 ? "" : "es"}. Upgrade to add more.`);
     }
-    return this.prisma.branch.create({ data: { ...dto, pharmacyId } });
+    const branch = await this.prisma.branch.create({ data: { ...dto, pharmacyId } });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "BRANCH_CREATED",
+      entity: "Branch",
+      entityId: branch.id,
+      newValue: { name: branch.name, address: branch.address },
+    });
+
+    return branch;
   }
 
   async getBranches(pharmacyId: string) {
@@ -60,11 +73,11 @@ export class PharmacyService {
     });
   }
 
-  async updateStaff(pharmacyId: string, userId: string, dto: UpdateStaffDto) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, pharmacyId } });
+  async updateStaff(pharmacyId: string, actorId: string, targetUserId: string, dto: UpdateStaffDto) {
+    const user = await this.prisma.user.findFirst({ where: { id: targetUserId, pharmacyId } });
     if (!user) throw new NotFoundException("Staff member not found");
-    return this.prisma.user.update({
-      where: { id: userId },
+    const updated = await this.prisma.user.update({
+      where: { id: targetUserId },
       data: dto,
       select: {
         id: true, firstName: true, lastName: true,
@@ -73,22 +86,49 @@ export class PharmacyService {
         branch: { select: { name: true } },
       },
     });
+
+    const action = dto.isActive === false ? "STAFF_DEACTIVATED"
+      : dto.isActive === true ? "STAFF_REACTIVATED"
+      : "STAFF_UPDATED";
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action,
+      entity: "User",
+      entityId: targetUserId,
+      oldValue: { role: user.role, isActive: user.isActive, branchId: user.branchId },
+      newValue: { ...dto, email: user.email, name: `${user.firstName} ${user.lastName}` },
+    });
+
+    return updated;
   }
 
-  async deactivateStaff(pharmacyId: string, userId: string) {
-    return this.updateStaff(pharmacyId, userId, { isActive: false });
+  async deactivateStaff(pharmacyId: string, actorId: string, userId: string) {
+    return this.updateStaff(pharmacyId, actorId, userId, { isActive: false });
   }
 
-  async reactivateStaff(pharmacyId: string, userId: string) {
-    return this.updateStaff(pharmacyId, userId, { isActive: true });
+  async reactivateStaff(pharmacyId: string, actorId: string, userId: string) {
+    return this.updateStaff(pharmacyId, actorId, userId, { isActive: true });
   }
 
-  async updateProfile(pharmacyId: string, dto: UpdatePharmacyDto) {
-    return this.prisma.pharmacy.update({
+  async updateProfile(pharmacyId: string, actorId: string, dto: UpdatePharmacyDto) {
+    const updated = await this.prisma.pharmacy.update({
       where: { id: pharmacyId },
       data: dto,
       include: { branches: { where: { isActive: true } } },
     });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "PHARMACY_UPDATED",
+      entity: "Pharmacy",
+      entityId: pharmacyId,
+      newValue: dto as any,
+    });
+
+    return updated;
   }
 
   async updateLogo(pharmacyId: string, logoUrl: string) {
@@ -99,17 +139,40 @@ export class PharmacyService {
     });
   }
 
-  async updateBranch(pharmacyId: string, branchId: string, dto: UpdateBranchDto) {
+  async updateBranch(pharmacyId: string, actorId: string, branchId: string, dto: UpdateBranchDto) {
     const branch = await this.prisma.branch.findFirst({ where: { id: branchId, pharmacyId } });
     if (!branch) throw new NotFoundException("Branch not found");
-    return this.prisma.branch.update({ where: { id: branchId }, data: dto });
+    const updated = await this.prisma.branch.update({ where: { id: branchId }, data: dto });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "BRANCH_UPDATED",
+      entity: "Branch",
+      entityId: branchId,
+      oldValue: { name: branch.name, address: branch.address },
+      newValue: dto as any,
+    });
+
+    return updated;
   }
 
-  async deactivateBranch(pharmacyId: string, branchId: string) {
+  async deactivateBranch(pharmacyId: string, actorId: string, branchId: string) {
     const branch = await this.prisma.branch.findFirst({ where: { id: branchId, pharmacyId } });
     if (!branch) throw new NotFoundException("Branch not found");
     if (branch.isMain) throw new ForbiddenException("Cannot deactivate the main branch");
-    return this.prisma.branch.update({ where: { id: branchId }, data: { isActive: false } });
+    const updated = await this.prisma.branch.update({ where: { id: branchId }, data: { isActive: false } });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "BRANCH_DEACTIVATED",
+      entity: "Branch",
+      entityId: branchId,
+      newValue: { name: branch.name },
+    });
+
+    return updated;
   }
 
   // ── Staff invites ──────────────────────────────────────────────────────────
@@ -149,6 +212,15 @@ export class PharmacyService {
       expiresAt,
     });
 
+    this.audit.log({
+      pharmacyId,
+      userId: invitedById,
+      action: "STAFF_INVITED",
+      entity: "StaffInvite",
+      entityId: invite.id,
+      newValue: { email: dto.email, role: dto.role, branchId: dto.branchId, expiresAt: expiresAt.toISOString() },
+    });
+
     return { invite, inviteUrl, emailSent: this.mail.isEnabled };
   }
 
@@ -160,10 +232,20 @@ export class PharmacyService {
     });
   }
 
-  async revokeInvite(pharmacyId: string, id: string) {
+  async revokeInvite(pharmacyId: string, actorId: string, id: string) {
     const invite = await this.prisma.staffInvite.findFirst({ where: { id, pharmacyId } });
     if (!invite) throw new NotFoundException("Invite not found");
     await this.prisma.staffInvite.delete({ where: { id } });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "INVITE_REVOKED",
+      entity: "StaffInvite",
+      entityId: id,
+      newValue: { email: invite.email, role: invite.role },
+    });
+
     return { success: true };
   }
 

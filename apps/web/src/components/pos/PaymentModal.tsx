@@ -63,8 +63,27 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
     // Deduct stock locally so subsequent offline sales reflect correct stock
     await deductLocalStock(branchId, txItems.map(i => ({ medicineId: i.medicineId, quantity: i.quantity })));
 
+    const receiptSnapshot = {
+      offline: true,
+      localId,
+      receiptNo: `OFFLINE-${localId.slice(-8).toUpperCase()}`,
+      createdAt: new Date().toISOString(),
+      paymentMethod,
+      subtotal: subtotal(),
+      discount,
+      total: totalAmount,
+      amountPaid: paymentMethod === "CASH" ? paid : totalAmount,
+      change: paymentMethod === "CASH" ? Math.max(0, paid - totalAmount) : 0,
+      items: items.map(i => ({
+        id: i.medicineId,
+        quantity: i.quantity,
+        total: i.unitPrice * i.quantity - i.discount,
+        medicine: { name: i.name },
+      })),
+    };
+
     clearCart();
-    onSuccess({ offline: true, localId, total: totalAmount, paymentMethod });
+    onSuccess(receiptSnapshot);
     toast.success("Sale saved offline — will sync when internet returns", { duration: 5000 });
   };
 

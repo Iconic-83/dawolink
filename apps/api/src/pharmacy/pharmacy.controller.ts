@@ -37,7 +37,7 @@ export class PharmacyController {
 
   @Patch("me")
   updateProfile(@Req() req: any, @Body() dto: UpdatePharmacyDto) {
-    return this.pharmacy.updateProfile(req.user.pharmacyId, dto);
+    return this.pharmacy.updateProfile(req.user.pharmacyId, req.user.id, dto);
   }
 
   @Post("logo")
@@ -68,17 +68,17 @@ export class PharmacyController {
 
   @Post("branches")
   createBranch(@Req() req: any, @Body() dto: CreateBranchDto) {
-    return this.pharmacy.createBranch(req.user.pharmacyId, dto);
+    return this.pharmacy.createBranch(req.user.pharmacyId, req.user.id, dto);
   }
 
   @Patch("branches/:id")
   updateBranch(@Req() req: any, @Param("id") id: string, @Body() dto: UpdateBranchDto) {
-    return this.pharmacy.updateBranch(req.user.pharmacyId, id, dto);
+    return this.pharmacy.updateBranch(req.user.pharmacyId, req.user.id, id, dto);
   }
 
   @Delete("branches/:id")
   deactivateBranch(@Req() req: any, @Param("id") id: string) {
-    return this.pharmacy.deactivateBranch(req.user.pharmacyId, id);
+    return this.pharmacy.deactivateBranch(req.user.pharmacyId, req.user.id, id);
   }
 
   @Get("staff")
@@ -88,17 +88,17 @@ export class PharmacyController {
 
   @Patch("staff/:id")
   updateStaff(@Req() req: any, @Param("id") id: string, @Body() dto: UpdateStaffDto) {
-    return this.pharmacy.updateStaff(req.user.pharmacyId, id, dto);
+    return this.pharmacy.updateStaff(req.user.pharmacyId, req.user.id, id, dto);
   }
 
   @Patch("staff/:id/deactivate")
   deactivateStaff(@Req() req: any, @Param("id") id: string) {
-    return this.pharmacy.deactivateStaff(req.user.pharmacyId, id);
+    return this.pharmacy.deactivateStaff(req.user.pharmacyId, req.user.id, id);
   }
 
   @Patch("staff/:id/reactivate")
   reactivateStaff(@Req() req: any, @Param("id") id: string) {
-    return this.pharmacy.reactivateStaff(req.user.pharmacyId, id);
+    return this.pharmacy.reactivateStaff(req.user.pharmacyId, req.user.id, id);
   }
 
   // ── Staff invites ──────────────────────────────────────────────────────────
@@ -116,6 +116,6 @@ export class PharmacyController {
 
   @Delete("invites/:id")
   revokeInvite(@Req() req: any, @Param("id") id: string) {
-    return this.pharmacy.revokeInvite(req.user.pharmacyId, id);
+    return this.pharmacy.revokeInvite(req.user.pharmacyId, req.user.id, id);
   }
 }

@@ -2,303 +2,580 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  CreditCard, TrendingUp, Users, Building2, Clock,
+  CheckCircle2, AlertTriangle, FileText, Printer,
+  ChevronRight, Loader2, XCircle,
+} from "lucide-react";
 
-const PLAN_INFO: Record<string, { price: string; annual: string; color: string; features: string[] }> = {
-  STARTER:      { price: "$29", annual: "$290", color: "#4A8FE5", features: ["1 branch", "5 staff accounts", "Inventory + POS", "Expiry intelligence", "Basic analytics"] },
-  PROFESSIONAL: { price: "$79", annual: "$790", color: "#2D1B8E", features: ["Up to 5 branches", "50 staff accounts", "All features", "Supplier & PO management", "Priority support"] },
-  ENTERPRISE:   { price: "Custom", annual: "Custom", color: "#180D62", features: ["Unlimited branches", "Unlimited staff", "API access", "Custom domain", "Dedicated SLA"] },
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const PLAN_META: Record<string, { color: string; gradient: string; badge: string }> = {
+  STARTER:      { color: "#4A8FE5", gradient: "from-blue-500 to-blue-600",     badge: "bg-blue-100 text-blue-700" },
+  PROFESSIONAL: { color: "#2D1B8E", gradient: "from-indigo-600 to-purple-700", badge: "bg-indigo-100 text-indigo-700" },
+  ENTERPRISE:   { color: "#180D62", gradient: "from-slate-700 to-slate-900",   badge: "bg-slate-100 text-slate-700" },
+};
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  STARTER:      ["1 branch", "5 staff accounts", "Inventory + POS", "Expiry tracking", "Basic analytics"],
+  PROFESSIONAL: ["Up to 5 branches", "50 staff accounts", "All Starter features", "Supplier & PO management", "Advanced analytics", "Priority support"],
+  ENTERPRISE:   ["Unlimited branches", "Unlimited staff", "All Professional features", "API access", "Custom domain", "Dedicated SLA"],
+};
+
+const PLAN_PRICES: Record<string, { monthly: number; annual: number }> = {
+  STARTER:      { monthly: 29,  annual: 290  },
+  PROFESSIONAL: { monthly: 79,  annual: 790  },
+  ENTERPRISE:   { monthly: 0,   annual: 0    },
+};
+
+const STATUS_VARIANT: Record<string, any> = {
+  ACTIVE:   "success", TRIALING: "info",
+  PAST_DUE: "danger",  CANCELLED: "muted", SUSPENDED: "danger",
 };
 
 const PAYMENT_METHODS = [
-  { id: "EVC_PLUS",       label: "EVC Plus",       color: "#E34234", hint: "Send to: +252-61-DAWOLINK" },
-  { id: "ZAAD",           label: "Zaad",            color: "#009E52", hint: "Send to: +252-63-DAWOLINK" },
-  { id: "SAHAL",          label: "Sahal",           color: "#0071B9", hint: "Send to: +252-90-DAWOLINK" },
-  { id: "PREMIER_WALLET", label: "Premier Wallet",  color: "#8B5CF6", hint: "Send to: +252-77-DAWOLINK" },
+  { id: "EVC_PLUS",       label: "EVC Plus",       color: "#E34234", number: "+252-61-DAWOLINK" },
+  { id: "ZAAD",           label: "Zaad",            color: "#009E52", number: "+252-63-DAWOLINK" },
+  { id: "SAHAL",          label: "Sahal",           color: "#0071B9", number: "+252-90-DAWOLINK" },
+  { id: "PREMIER_WALLET", label: "Premier Wallet",  color: "#8B5CF6", number: "+252-77-DAWOLINK" },
 ];
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { bg: string; color: string; label: string }> = {
-    ACTIVE:   { bg: "rgba(0,200,151,0.1)",  color: "#00C897", label: "Active" },
-    TRIALING: { bg: "rgba(74,143,229,0.1)", color: "#4A8FE5", label: "Free Trial" },
-    PAST_DUE: { bg: "rgba(239,68,68,0.1)",  color: "#EF4444", label: "Past Due" },
-    CANCELLED:{ bg: "rgba(156,163,175,0.1)",color: "#9CA3AF", label: "Cancelled" },
-    SUSPENDED:{ bg: "rgba(239,68,68,0.1)",  color: "#EF4444", label: "Suspended" },
-  };
-  const s = map[status] ?? map.PAST_DUE;
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function UsageMeter({ label, icon, used, limit }: {
+  label: string; icon: React.ReactNode; used: number; limit: number | null;
+}) {
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const danger = limit && pct >= 90;
   return (
-    <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: s.bg, color: s.color }}>
-      {s.label}
-    </span>
+    <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          {icon} {label}
+        </div>
+        <span className={`text-sm font-bold ${danger ? "text-red-600" : "text-gray-900"}`}>
+          {used}{limit ? ` / ${limit}` : ""}
+          {!limit && <span className="text-xs font-normal text-gray-400 ml-1">unlimited</span>}
+        </span>
+      </div>
+      {limit && (
+        <>
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${danger ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">{pct}% of plan limit used</p>
+        </>
+      )}
+    </div>
   );
 }
 
-export default function BillingPage() {
+function PlanCard({ plan, current, cycle, onSelect }: {
+  plan: string; current: boolean; cycle: "MONTHLY" | "ANNUAL"; onSelect: () => void;
+}) {
+  const meta = PLAN_META[plan] ?? PLAN_META.STARTER;
+  const prices = PLAN_PRICES[plan];
+  const isEnterprise = plan === "ENTERPRISE";
+  const price = cycle === "ANNUAL" ? prices.annual : prices.monthly;
+  const features = PLAN_FEATURES[plan] ?? [];
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`relative rounded-2xl border-2 p-5 transition cursor-pointer ${
+        current
+          ? "border-indigo-500 bg-indigo-50/50"
+          : "border-gray-100 bg-white hover:border-indigo-200 hover:shadow-md"
+      }`}
+    >
+      {plan === "PROFESSIONAL" && !current && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-emerald-500 text-white text-xs font-bold rounded-full">
+          POPULAR
+        </span>
+      )}
+      {current && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-indigo-600 text-white text-xs font-bold rounded-full">
+          CURRENT PLAN
+        </span>
+      )}
+
+      <div className="mb-4">
+        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${meta.badge.split(" ")[1]}`}
+          style={{ color: meta.color }}>{plan}</p>
+        {isEnterprise ? (
+          <p className="text-2xl font-bold text-gray-900">Custom pricing</p>
+        ) : (
+          <p className="text-2xl font-bold text-gray-900">
+            {formatCurrency(price)}
+            <span className="text-sm font-normal text-gray-400">
+              /{cycle === "ANNUAL" ? "yr" : "mo"}
+            </span>
+          </p>
+        )}
+        {cycle === "ANNUAL" && !isEnterprise && (
+          <p className="text-xs text-emerald-600 font-medium mt-0.5">
+            {formatCurrency(prices.monthly * 12 - prices.annual)} saved vs monthly
+          </p>
+        )}
+      </div>
+
+      <ul className="space-y-2 mb-4">
+        {features.map(f => (
+          <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+            {f}
+          </li>
+        ))}
+      </ul>
+
+      {isEnterprise ? (
+        <a href="mailto:sales@dawolink.com"
+          className="block text-center py-2 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+          onClick={e => e.stopPropagation()}>
+          Contact Sales
+        </a>
+      ) : (
+        <button
+          className={`w-full py-2 rounded-xl text-sm font-semibold transition ${
+            current
+              ? "bg-indigo-100 text-indigo-700 cursor-default"
+              : "bg-indigo-600 text-white hover:bg-indigo-700"
+          }`}
+          onClick={onSelect}
+          disabled={current}
+        >
+          {current ? "Current Plan" : `Select ${plan}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Payment form ───────────────────────────────────────────────────────────
+
+function PaymentForm({ plan, cycle, onClose }: {
+  plan: string; cycle: "MONTHLY" | "ANNUAL"; onClose: () => void;
+}) {
   const qc = useQueryClient();
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState("PROFESSIONAL");
-  const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [method, setMethod] = useState("EVC_PLUS");
   const [reference, setReference] = useState("");
+  const selectedMethod = PAYMENT_METHODS.find(m => m.id === method)!;
+  const price = cycle === "ANNUAL" ? PLAN_PRICES[plan].annual : PLAN_PRICES[plan].monthly;
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => api.post("/v1/billing/pay", { method, reference, amount: price, plan, billingCycle: cycle }).then(r => r.data),
+    onSuccess: (data) => {
+      toast.success(data.message ?? "Payment submitted! Subscription activated.");
+      qc.invalidateQueries({ queryKey: ["subscription"] });
+      qc.invalidateQueries({ queryKey: ["billing-usage"] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Payment failed"),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-indigo-50 rounded-xl p-4">
+        <p className="text-sm text-indigo-700">
+          Paying for <strong>{plan}</strong> plan · <strong>{cycle}</strong> · <strong>{formatCurrency(price)}</strong>
+        </p>
+      </div>
+
+      {/* Method */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Payment method</label>
+        <div className="grid grid-cols-2 gap-2">
+          {PAYMENT_METHODS.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMethod(m.id)}
+              className={`p-3 rounded-xl border-2 text-left transition ${
+                method === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-100 bg-white hover:border-gray-200"
+              }`}
+            >
+              <p className="text-sm font-semibold" style={{ color: m.color }}>{m.label}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{m.number}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm">
+        <p className="font-semibold text-amber-800 mb-1">How to pay:</p>
+        <ol className="text-amber-700 space-y-1 text-xs list-decimal pl-4">
+          <li>Send <strong>{formatCurrency(price)}</strong> via {selectedMethod.label}</li>
+          <li>To: <strong>{selectedMethod.number}</strong></li>
+          <li>Copy the transaction reference number</li>
+          <li>Paste it below and click Confirm</li>
+        </ol>
+      </div>
+
+      {/* Reference */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Transaction reference *</label>
+        <input
+          value={reference}
+          onChange={e => setReference(e.target.value)}
+          placeholder="e.g. MP210528001234"
+          className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition">
+          Cancel
+        </button>
+        <button
+          onClick={() => mutate()}
+          disabled={isPending || !reference.trim()}
+          className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition"
+        >
+          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Confirm Payment — {formatCurrency(price)}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
+
+type Tab = "overview" | "invoices" | "plans";
+
+export default function BillingPage() {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>("overview");
+  const [cycle, setCycle] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [payingPlan, setPayingPlan] = useState<string | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
 
   const { data: sub, isLoading } = useQuery<any>({
     queryKey: ["subscription"],
     queryFn: () => api.get("/v1/billing/subscription").then(r => r.data),
   });
 
-  const payMutation = useMutation({
-    mutationFn: (body: any) => api.post("/v1/billing/pay", body).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(data.message ?? "Payment submitted! Subscription activated.");
-      qc.invalidateQueries({ queryKey: ["subscription"] });
-      setShowUpgrade(false);
-      setReference("");
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message ?? "Payment failed. Check the reference and try again.");
-    },
+  const { data: usage } = useQuery<any>({
+    queryKey: ["billing-usage"],
+    queryFn: () => api.get("/v1/billing/usage").then(r => r.data),
   });
 
-  const handlePay = () => {
-    if (!reference.trim()) { toast.error("Enter the payment reference number"); return; }
-    const planPrices: Record<string, Record<string, number>> = {
-      STARTER:      { MONTHLY: 29,  ANNUAL: 290 },
-      PROFESSIONAL: { MONTHLY: 79,  ANNUAL: 790 },
-    };
-    const amount = planPrices[selectedPlan]?.[billingCycle] ?? 29;
-    payMutation.mutate({ method, reference, amount, plan: selectedPlan, billingCycle });
-  };
+  const { data: invoicesData } = useQuery<any>({
+    queryKey: ["invoices"],
+    queryFn: () => api.get("/v1/billing/invoices?limit=50").then(r => r.data),
+    enabled: tab === "invoices",
+  });
 
-  if (isLoading) return <div style={{ padding: 32, color: "#6B6B9A" }}>Loading...</div>;
+  const { mutate: cancelSub, isPending: cancelling } = useMutation({
+    mutationFn: () => api.patch("/v1/billing/subscription/cancel").then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subscription"] });
+      toast.success("Subscription cancelled");
+      setCancelConfirm(false);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
 
-  const info = sub ? PLAN_INFO[sub.plan] : null;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading billing…
+      </div>
+    );
+  }
+
   const daysLeft = sub ? Math.ceil((new Date(sub.currentPeriodEnd).getTime() - Date.now()) / 86400000) : 0;
-  const selectedMethodInfo = PAYMENT_METHODS.find(m => m.id === method)!;
-  const planPrice = selectedPlan === "ENTERPRISE" ? null : (billingCycle === "ANNUAL" ? PLAN_INFO[selectedPlan]?.annual : PLAN_INFO[selectedPlan]?.price);
+  const periodDays = sub?.billingCycle === "ANNUAL" ? 365 : 30;
+  const periodPct = sub ? Math.max(2, Math.min(100, (daysLeft / periodDays) * 100)) : 0;
+  const urgency = daysLeft <= 3 ? "text-red-600" : daysLeft <= 7 ? "text-amber-600" : "text-emerald-600";
+
+  const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: "overview", label: "Overview",  icon: <CreditCard className="h-4 w-4" /> },
+    { key: "invoices", label: "Invoices",  icon: <FileText className="h-4 w-4" /> },
+    { key: "plans",    label: "Plans",     icon: <TrendingUp className="h-4 w-4" /> },
+  ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#180D62", margin: 0 }}>Billing & Subscription</h1>
-        {sub && sub.status !== "CANCELLED" && (
-          <button
-            onClick={() => setShowUpgrade(v => !v)}
-            style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "linear-gradient(90deg,#2D1B8E,#4A8FE5)", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
-          >
-            {showUpgrade ? "✕ Close" : "⬆ Upgrade / Renew"}
-          </button>
-        )}
+    <div className="space-y-6 max-w-4xl">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Billing & Subscription</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Manage your plan, payments, and invoices</p>
       </div>
 
-      {/* Trial warning banner */}
-      {sub?.status === "TRIALING" && daysLeft <= 5 && (
-        <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
-          <span style={{ fontSize: 14, color: "#991B1B", fontWeight: 500 }}>
-            Your free trial expires in <strong>{daysLeft} day{daysLeft !== 1 ? "s" : ""}</strong>. Pay now to keep access.
-          </span>
-          <button onClick={() => setShowUpgrade(true)} style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 8, border: "none", background: "#EF4444", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            Pay Now
+      {/* Alert banners */}
+      {sub?.status === "TRIALING" && daysLeft <= 7 && (
+        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-800 flex-1">
+            <strong>Trial ending soon.</strong> Your free trial expires in <strong>{daysLeft} day{daysLeft !== 1 ? "s" : ""}</strong>.
+            Activate a plan to keep uninterrupted access.
+          </p>
+          <button onClick={() => { setTab("plans"); setCycle("MONTHLY"); }}
+            className="px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl hover:bg-amber-600 transition flex-shrink-0">
+            Choose Plan
           </button>
         </div>
       )}
-
-      {/* Past due banner */}
       {sub?.status === "PAST_DUE" && (
-        <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>🔒</span>
-          <span style={{ fontSize: 14, color: "#991B1B", fontWeight: 500 }}>
-            Your subscription has expired. Submit a payment to restore access.
-          </span>
-          <button onClick={() => setShowUpgrade(true)} style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 8, border: "none", background: "#EF4444", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            Restore Access
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <p className="text-sm text-red-800 flex-1">
+            <strong>Subscription expired.</strong> Some features may be restricted. Renew now to restore full access.
+          </p>
+          <button onClick={() => { setTab("plans"); }}
+            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition flex-shrink-0">
+            Renew
           </button>
         </div>
       )}
 
-      {/* No subscription */}
-      {!sub && (
-        <div style={{ background: "white", borderRadius: 16, padding: 32, textAlign: "center", border: "1px solid #E8E4FF", marginBottom: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>💳</div>
-          <h2 style={{ fontWeight: 800, fontSize: 18, color: "#180D62", margin: "0 0 8px" }}>No Active Subscription</h2>
-          <p style={{ fontSize: 14, color: "#6B6B9A", margin: "0 0 16px" }}>Choose a plan below to get started.</p>
-          <button onClick={() => setShowUpgrade(true)} style={{ padding: "11px 28px", borderRadius: 10, border: "none", background: "linear-gradient(90deg,#00C897,#009E78)", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            Choose a Plan
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+              tab === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}>
+            {t.icon} {t.label}
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* Current subscription card */}
-      {sub && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-          {/* Plan */}
-          <div style={{ gridColumn: "span 2", background: "white", borderRadius: 16, padding: 24, border: "1px solid #E8E4FF" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 13, color: "#9B9BC0", marginBottom: 4 }}>Current Plan</div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: info?.color }}>{sub.plan}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#180D62", marginTop: 2 }}>{info?.price}<span style={{ fontSize: 13, fontWeight: 400, color: "#9B9BC0" }}>/mo</span></div>
-              </div>
-              <StatusBadge status={sub.status} />
+      {/* ── Overview tab ── */}
+      {tab === "overview" && (
+        <div className="space-y-5">
+          {!sub ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <h2 className="text-lg font-bold text-gray-900 mb-1">No Active Subscription</h2>
+              <p className="text-sm text-gray-500 mb-4">Choose a plan to get started.</p>
+              <button onClick={() => setTab("plans")} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition">
+                Browse Plans
+              </button>
             </div>
-
-            <div style={{ background: "#F4F2FF", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: "#6B6B9A" }}>Period</span>
-                <span style={{ fontWeight: 600, color: daysLeft <= 7 ? "#EF4444" : "#180D62" }}>{daysLeft > 0 ? `${daysLeft} days left` : "Expired"}</span>
-              </div>
-              <div style={{ height: 6, background: "#E8E4FF", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: daysLeft <= 7 ? "#EF4444" : "#00C897", width: `${Math.max(2, Math.min(100, (daysLeft / (sub.billingCycle === "ANNUAL" ? 365 : 30)) * 100))}%`, borderRadius: 3, transition: "width 0.3s" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9B9BC0", marginTop: 4 }}>
-                <span>{new Date(sub.currentPeriodStart).toLocaleDateString()}</span>
-                <span>{new Date(sub.currentPeriodEnd).toLocaleDateString()}</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
-              {info?.features.map(f => (
-                <span key={f} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#374151" }}>
-                  <span style={{ color: "#00C897", fontWeight: 700 }}>✓</span> {f}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Invoices */}
-          <div style={{ background: "white", borderRadius: 16, padding: 24, border: "1px solid #E8E4FF" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#2D1B8E", marginBottom: 14 }}>Payment History</div>
-            {!sub.invoices?.length ? (
-              <p style={{ fontSize: 13, color: "#9B9BC0" }}>No invoices yet.</p>
-            ) : (
-              <div>
-                {sub.invoices.slice(0, 6).map((inv: any) => (
-                  <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F3F4F6" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#180D62" }}>{inv.invoiceNo}</div>
-                      <div style={{ fontSize: 11, color: "#9B9BC0" }}>{new Date(inv.createdAt).toLocaleDateString()}</div>
-                    </div>
-                    <div style={{ textAlign: "right" as const }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#00C897" }}>${Number(inv.amount).toFixed(0)}</div>
-                      <span style={{ fontSize: 11, color: inv.status === "PAID" ? "#00C897" : "#EF4444" }}>{inv.status}</span>
-                    </div>
+          ) : (
+            <>
+              {/* Subscription card */}
+              <div className={`bg-gradient-to-br ${PLAN_META[sub.plan]?.gradient ?? "from-indigo-600 to-purple-700"} rounded-2xl p-6 text-white`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <p className="text-white/70 text-sm font-medium mb-1">Current Plan</p>
+                    <h2 className="text-3xl font-bold">{sub.plan}</h2>
+                    <p className="text-white/70 text-sm mt-1">
+                      {sub.billingCycle === "ANNUAL" ? "Annual billing" : "Monthly billing"} · {formatCurrency(Number(sub.amount))}/{sub.billingCycle === "ANNUAL" ? "yr" : "mo"}
+                    </p>
                   </div>
-                ))}
+                  <Badge variant={STATUS_VARIANT[sub.status] ?? "muted"} className="text-sm">
+                    {sub.status.replace("_", " ")}
+                  </Badge>
+                </div>
+
+                {/* Period progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-white/80">
+                    <span>Billing period</span>
+                    <span className={`font-semibold ${daysLeft <= 7 ? "text-red-300" : "text-white"}`}>
+                      {daysLeft > 0 ? `${daysLeft} days remaining` : "Expired"}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/20">
+                    <div className="h-full rounded-full bg-white/80 transition-all" style={{ width: `${periodPct}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-white/50">
+                    <span>{formatDate(sub.currentPeriodStart)}</span>
+                    <span>{formatDate(sub.currentPeriodEnd)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-5">
+                  <button onClick={() => setTab("plans")}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-semibold transition">
+                    Upgrade Plan <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  {sub.status !== "CANCELLED" && (
+                    <button onClick={() => setTab("invoices")}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition">
+                      View Invoices
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Plan features */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-3">What's included in your plan</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(PLAN_FEATURES[sub.plan] ?? []).map(f => (
+                    <div key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Usage meters */}
+              {usage && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <UsageMeter
+                    label="Branches"
+                    icon={<Building2 className="h-4 w-4" />}
+                    used={usage.branches.used}
+                    limit={usage.branches.limit}
+                  />
+                  <UsageMeter
+                    label="Staff accounts"
+                    icon={<Users className="h-4 w-4" />}
+                    used={usage.staff.used}
+                    limit={usage.staff.limit}
+                  />
+                </div>
+              )}
+
+              {/* Cancel */}
+              {sub.status === "ACTIVE" && (
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Cancel subscription</p>
+                    <p className="text-xs text-gray-400 mt-0.5">You'll keep access until {formatDate(sub.currentPeriodEnd)}</p>
+                  </div>
+                  <button onClick={() => setCancelConfirm(true)}
+                    className="px-4 py-2 border border-red-200 text-red-600 text-sm font-medium rounded-xl hover:bg-red-50 transition">
+                    Cancel Plan
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
-      {/* ── Upgrade / Payment panel ── */}
-      {showUpgrade && (
-        <div style={{ background: "white", borderRadius: 16, border: "1px solid #E8E4FF", padding: 28, marginBottom: 24 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, color: "#180D62", margin: "0 0 20px" }}>Choose Plan & Pay</h2>
+      {/* ── Invoices tab ── */}
+      {tab === "invoices" && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Invoice History</h2>
+            <p className="text-sm text-gray-400">{invoicesData?.total ?? 0} invoices</p>
+          </div>
+          {!invoicesData?.invoices?.length ? (
+            <div className="py-12 text-center text-gray-400">
+              <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p>No invoices yet</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-left">
+                  <th className="px-5 py-3">Invoice #</th>
+                  <th className="px-5 py-3">Date</th>
+                  <th className="px-5 py-3">Amount</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Notes</th>
+                  <th className="px-5 py-3 w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {invoicesData.invoices.map((inv: any) => (
+                  <tr key={inv.id} className="hover:bg-gray-50/60 transition">
+                    <td className="px-5 py-3 font-mono text-sm font-medium text-gray-800">{inv.invoiceNo}</td>
+                    <td className="px-5 py-3 text-gray-500">{formatDate(inv.createdAt)}</td>
+                    <td className="px-5 py-3 font-semibold text-gray-900">{formatCurrency(Number(inv.amount))}</td>
+                    <td className="px-5 py-3">
+                      <Badge variant={inv.status === "PAID" ? "success" : inv.status === "OVERDUE" ? "danger" : "warning"}>
+                        {inv.status}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-400 max-w-xs truncate">{inv.notes ?? "—"}</td>
+                    <td className="px-5 py-3">
+                      <button
+                        onClick={() => router.push(`/billing/invoice/${inv.id}`)}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        title="View / Print"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
-          {/* Billing cycle toggle */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Billing cycle:</span>
-            <div style={{ display: "flex", background: "#E8E4FF", borderRadius: 8, padding: 3, gap: 0 }}>
+      {/* ── Plans tab ── */}
+      {tab === "plans" && (
+        <div className="space-y-5">
+          {/* Cycle toggle */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">Billing cycle</span>
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
               {(["MONTHLY", "ANNUAL"] as const).map(c => (
-                <button key={c} onClick={() => setBillingCycle(c)} style={{
-                  padding: "6px 16px", borderRadius: 6, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  background: billingCycle === c ? "white" : "transparent",
-                  color: billingCycle === c ? "#180D62" : "#9B9BC0",
-                  boxShadow: billingCycle === c ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
-                }}>
-                  {c === "MONTHLY" ? "Monthly" : "Annual (2 months free)"}
+                <button key={c} onClick={() => setCycle(c)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                    cycle === c ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}>
+                  {c === "MONTHLY" ? "Monthly" : "Annual · 2 months free"}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Plan selector */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
-            {["STARTER", "PROFESSIONAL", "ENTERPRISE"].map(p => {
-              const pi = PLAN_INFO[p];
-              const isSelected = selectedPlan === p;
-              const price = p === "ENTERPRISE" ? "Custom" : (billingCycle === "ANNUAL" ? pi.annual : pi.price);
-              return (
-                <div key={p} onClick={() => p !== "ENTERPRISE" && setSelectedPlan(p)} style={{
-                  borderRadius: 12, padding: 18, border: `2px solid ${isSelected ? pi.color : "#E8E4FF"}`,
-                  background: isSelected ? `${pi.color}10` : "white",
-                  cursor: p === "ENTERPRISE" ? "default" : "pointer",
-                  transition: "all 0.15s", position: "relative" as const,
-                }}>
-                  {p === "PROFESSIONAL" && (
-                    <span style={{ position: "absolute" as const, top: -10, right: 12, background: "#00C897", color: "white", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>POPULAR</span>
-                  )}
-                  <div style={{ fontSize: 15, fontWeight: 800, color: pi.color, marginBottom: 4 }}>{pi.price !== "Custom" ? p : "ENTERPRISE"}</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#180D62" }}>{price}<span style={{ fontSize: 12, fontWeight: 400, color: "#9B9BC0" }}>{p !== "ENTERPRISE" ? `/${billingCycle === "ANNUAL" ? "yr" : "mo"}` : ""}</span></div>
-                  <ul style={{ marginTop: 10, padding: 0, listStyle: "none" }}>
-                    {pi.features.map(f => (
-                      <li key={f} style={{ fontSize: 12, color: "#374151", display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                        <span style={{ color: "#00C897" }}>✓</span> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  {p === "ENTERPRISE" && (
-                    <div style={{ marginTop: 12, fontSize: 12, color: "#6B6B9A" }}>Contact us for pricing</div>
-                  )}
-                </div>
-              );
-            })}
+          {/* Plan grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {["STARTER", "PROFESSIONAL", "ENTERPRISE"].map(plan => (
+              <PlanCard
+                key={plan}
+                plan={plan}
+                current={sub?.plan === plan}
+                cycle={cycle}
+                onSelect={() => plan !== "ENTERPRISE" && setPayingPlan(plan)}
+              />
+            ))}
           </div>
-
-          {selectedPlan !== "ENTERPRISE" && (
-            <>
-              {/* Payment method */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 10 }}>Payment Method</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  {PAYMENT_METHODS.map(m => (
-                    <button key={m.id} onClick={() => setMethod(m.id)} style={{
-                      flex: 1, padding: "10px 8px", borderRadius: 10, border: `2px solid ${method === m.id ? m.color : "#E8E4FF"}`,
-                      background: method === m.id ? `${m.color}10` : "white", cursor: "pointer", transition: "all 0.15s",
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: method === m.id ? m.color : "#374151" }}>{m.label}</div>
-                    </button>
-                  ))}
-                </div>
-                <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B9A", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
-                  📱 {selectedMethodInfo.hint} — Amount: <strong>{planPrice}/{ billingCycle === "ANNUAL" ? "year" : "month"}</strong>
-                </div>
-              </div>
-
-              {/* Reference input */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>Payment Reference Number</div>
-                <input
-                  value={reference}
-                  onChange={e => setReference(e.target.value)}
-                  placeholder="e.g. MP210528001234"
-                  style={{
-                    width: "100%", padding: "12px 14px", borderRadius: 10,
-                    border: `1.5px solid ${reference ? "#2D1B8E" : "#E8E4FF"}`,
-                    fontSize: 14, color: "#180D62", outline: "none", boxSizing: "border-box" as const,
-                  }}
-                />
-                <p style={{ fontSize: 12, color: "#9B9BC0", margin: "6px 0 0" }}>
-                  After sending payment via {selectedMethodInfo.label}, enter the transaction reference here.
-                </p>
-              </div>
-
-              <button
-                onClick={handlePay}
-                disabled={payMutation.isPending || !reference.trim()}
-                style={{
-                  padding: "13px 32px", borderRadius: 10, border: "none",
-                  background: payMutation.isPending || !reference.trim() ? "#9B9BC0" : "linear-gradient(90deg,#00C897,#009E78)",
-                  color: "white", fontWeight: 700, fontSize: 15, cursor: payMutation.isPending || !reference.trim() ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", gap: 8,
-                }}
-              >
-                {payMutation.isPending ? "Processing…" : `Confirm Payment — ${planPrice}/${billingCycle === "ANNUAL" ? "yr" : "mo"}`}
-              </button>
-            </>
-          )}
         </div>
+      )}
+
+      {/* Payment modal */}
+      {payingPlan && (
+        <Modal open onClose={() => setPayingPlan(null)} title={`Activate ${payingPlan} Plan`} size="md">
+          <PaymentForm plan={payingPlan} cycle={cycle} onClose={() => setPayingPlan(null)} />
+        </Modal>
+      )}
+
+      {/* Cancel confirm modal */}
+      {cancelConfirm && (
+        <Modal open onClose={() => setCancelConfirm(false)} title="Cancel Subscription" size="sm">
+          <div className="space-y-4">
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
+              <p className="font-semibold mb-1">Are you sure?</p>
+              <p>You'll keep full access until <strong>{sub ? formatDate(sub.currentPeriodEnd) : "—"}</strong>. After that, your account will be downgraded.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelConfirm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Keep Plan</button>
+              <button
+                onClick={() => cancelSub()}
+                disabled={cancelling}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

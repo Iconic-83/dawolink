@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from "@nestjs/comm
 import { PrismaService } from "../common/database/prisma.service";
 import { Plan } from "@dawolink/database";
 import { SubmitPaymentDto } from "./billing.dto";
+import { PLAN_LIMITS } from "../common/guards/plan.guard";
 
 export const PLAN_PRICES: Record<Plan, number> = {
   STARTER: 29,
@@ -154,6 +155,52 @@ export class BillingService {
 
   getPlansInfo() {
     return PLANS_INFO;
+  }
+
+  async getPlanUsage(pharmacyId: string) {
+    const pharmacy = await this.prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { plan: true },
+    });
+    const plan = (pharmacy?.plan ?? "STARTER") as Plan;
+    const limits = PLAN_LIMITS[plan];
+
+    const [branches, staff] = await Promise.all([
+      this.prisma.branch.count({ where: { pharmacyId, isActive: true } }),
+      this.prisma.user.count({ where: { pharmacyId, isActive: true } }),
+    ]);
+
+    return {
+      plan,
+      branches: { used: branches, limit: limits.branches === Infinity ? null : limits.branches },
+      staff:    { used: staff,    limit: limits.staff    === Infinity ? null : limits.staff },
+    };
+  }
+
+  async listInvoices(pharmacyId: string, page = 1, limit = 20) {
+    const sub = await this.prisma.subscription.findUnique({ where: { pharmacyId } });
+    if (!sub) return { invoices: [], total: 0 };
+    const [invoices, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { subscriptionId: sub.id },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.invoice.count({ where: { subscriptionId: sub.id } }),
+    ]);
+    return { invoices, total };
+  }
+
+  async getInvoice(pharmacyId: string, invoiceId: string) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { pharmacyId },
+      include: { pharmacy: { select: { name: true, address: true, city: true, phone: true, email: true, licenseNo: true } } },
+    });
+    if (!sub) throw new NotFoundException("Subscription not found");
+    const invoice = await this.prisma.invoice.findFirst({ where: { id: invoiceId, subscriptionId: sub.id } });
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    return { invoice, pharmacy: sub.pharmacy };
   }
 
   // Platform admin: overview of all subscriptions

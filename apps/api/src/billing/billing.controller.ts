@@ -43,6 +43,28 @@ export class BillingController {
     return this.billing.getPlansInfo();
   }
 
+  @Get("usage")
+  @ApiOperation({ summary: "Current plan usage vs limits" })
+  usage(@Req() req: any) {
+    return this.billing.getPlanUsage(req.user.pharmacyId);
+  }
+
+  @Get("invoices")
+  @ApiOperation({ summary: "Paginated invoice history" })
+  listInvoices(
+    @Req() req: any,
+    @Query("page") page = "1",
+    @Query("limit") limit = "20",
+  ) {
+    return this.billing.listInvoices(req.user.pharmacyId, +page, +limit);
+  }
+
+  @Get("invoices/:id")
+  @ApiOperation({ summary: "Invoice detail for printing" })
+  getInvoice(@Req() req: any, @Param("id") id: string) {
+    return this.billing.getInvoice(req.user.pharmacyId, id);
+  }
+
   // Platform admin billing
   @Get("admin/overview")
   @UseGuards(PlatformAdminGuard)
