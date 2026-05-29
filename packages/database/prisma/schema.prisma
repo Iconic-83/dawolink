@@ -420,8 +420,10 @@ model MedicineOrder {
   subtotal        Decimal             @db.Decimal(10, 2)
   deliveryFee     Decimal             @default(0) @db.Decimal(10, 2)
   total           Decimal             @db.Decimal(10, 2)
-  prescriptionUrl String?
-  notes           String?
+  prescriptionUrl          String?
+  prescriptionStatus       PrescriptionStatus @default(NONE)
+  prescriptionRejectReason String?
+  notes                    String?
   confirmedAt     DateTime?
   deliveredAt     DateTime?
   cancelledAt     DateTime?
@@ -710,6 +712,13 @@ enum DeliveryType {
 
 enum VerificationStatus {
   PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+enum PrescriptionStatus {
+  NONE
+  PENDING_REVIEW
   VERIFIED
   REJECTED
 }

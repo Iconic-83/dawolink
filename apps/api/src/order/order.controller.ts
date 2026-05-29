@@ -44,4 +44,14 @@ export class OrderController {
   updateStatus(@Req() req: any, @Param("id") id: string, @Body("status") status: string) {
     return this.orders.updateStatus(req.user.pharmacyId, id, status);
   }
+
+  @Patch(":id/prescription/verify")
+  verifyPrescription(@Req() req: any, @Param("id") id: string) {
+    return this.orders.verifyPrescription(req.user.pharmacyId, id);
+  }
+
+  @Patch(":id/prescription/reject")
+  rejectPrescription(@Req() req: any, @Param("id") id: string, @Body("reason") reason: string) {
+    return this.orders.rejectPrescription(req.user.pharmacyId, id, reason);
+  }
 }

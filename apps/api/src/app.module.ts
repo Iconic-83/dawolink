@@ -1,4 +1,6 @@
+import { join } from "path";
 import { Module } from "@nestjs/common";
+import { ServeStaticModule } from "@nestjs/serve-static";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
@@ -25,6 +27,7 @@ import { PushModule } from "./push/push.module";
 @Module({
   controllers: [HealthController],
   imports: [
+    ServeStaticModule.forRoot({ rootPath: join(process.cwd(), "uploads"), serveRoot: "/uploads" }),
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),

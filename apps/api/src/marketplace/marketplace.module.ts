@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { MarketplaceController } from "./marketplace.controller";
+import { PrescriptionUploadController } from "./prescription-upload.controller";
 import { MarketplaceService } from "./marketplace.service";
 import { DatabaseModule } from "../common/database/database.module";
 import { CustomerGuard } from "./guards/customer.guard";
@@ -17,7 +18,7 @@ import { CustomerGuard } from "./guards/customer.guard";
       }),
     }),
   ],
-  controllers: [MarketplaceController],
+  controllers: [MarketplaceController, PrescriptionUploadController],
   providers: [MarketplaceService, CustomerGuard],
 })
 export class MarketplaceModule {}

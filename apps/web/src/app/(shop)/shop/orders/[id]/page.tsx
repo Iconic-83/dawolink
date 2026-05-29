@@ -140,6 +140,37 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* Prescription status */}
+      {order.prescriptionUrl && (
+        <div style={{
+          background: order.prescriptionStatus === "VERIFIED" ? "#E6FAF4"
+            : order.prescriptionStatus === "REJECTED" ? "#FEE2E2" : "#FEF3C7",
+          border: `1px solid ${order.prescriptionStatus === "VERIFIED" ? "#A7F3D0" : order.prescriptionStatus === "REJECTED" ? "#FECACA" : "#FDE68A"}`,
+          borderRadius: 18, padding: "16px 20px", marginBottom: 16,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: order.prescriptionRejectReason ? 8 : 0 }}>
+            <span style={{ fontSize: 20 }}>
+              {order.prescriptionStatus === "VERIFIED" ? "✅" : order.prescriptionStatus === "REJECTED" ? "❌" : "⏳"}
+            </span>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: order.prescriptionStatus === "VERIFIED" ? "#065F46" : order.prescriptionStatus === "REJECTED" ? "#991B1B" : "#92400E" }}>
+                Prescription {order.prescriptionStatus === "VERIFIED" ? "Verified" : order.prescriptionStatus === "REJECTED" ? "Rejected" : "Pending Review"}
+              </p>
+              <a href={`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000"}${order.prescriptionUrl}`}
+                target="_blank" rel="noreferrer"
+                style={{ fontSize: 12, color: "#6B6B9A", textDecoration: "underline" }}>
+                View uploaded prescription
+              </a>
+            </div>
+          </div>
+          {order.prescriptionRejectReason && (
+            <p style={{ margin: 0, fontSize: 13, color: "#991B1B" }}>
+              Reason: {order.prescriptionRejectReason}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Order items */}
       <div style={{ background: "#fff", borderRadius: 18, padding: "20px", border: "1px solid #EDE9FF", marginBottom: 16 }}>
         <p style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: "#180D62", textTransform: "uppercase", letterSpacing: "0.06em" }}>Items</p>

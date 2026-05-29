@@ -284,6 +284,8 @@ export class MarketplaceService {
         deliveryFee,
         total,
         notes: dto.notes,
+        prescriptionUrl: dto.prescriptionUrl ?? null,
+        prescriptionStatus: dto.prescriptionUrl ? "PENDING_REVIEW" : "NONE",
         items: {
           create: dto.items.map(i => ({
             medicineName: i.medicineName,

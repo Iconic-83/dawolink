@@ -48,6 +48,77 @@ interface OrderModalProps {
   onSuccess: (order: any) => void;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
+
+function PrescriptionUploader({ required, deliveryType, onChange }: {
+  required: boolean;
+  deliveryType: "DELIVERY" | "PICKUP";
+  onChange: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [filename, setFilename] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+
+  const mandatory = required && deliveryType === "DELIVERY";
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setErr("File must be under 10 MB"); return; }
+    setErr(""); setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const token = localStorage.getItem("customer_token");
+      const res = await fetch(`${API_BASE}/v1/marketplace/prescriptions/upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "Upload failed");
+      const data = await res.json();
+      setUrl(data.url); setFilename(file.name);
+      onChange(data.url);
+    } catch (e: any) {
+      setErr(e.message ?? "Upload failed");
+    } finally { setUploading(false); }
+  }
+
+  function remove() { setUrl(null); setFilename(null); onChange(null); }
+
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+        Prescription {mandatory ? "*" : "(optional for pickup)"}
+      </label>
+      {url ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#E6FAF4", borderRadius: 10, border: "1px solid #A7F3D0" }}>
+          <span style={{ fontSize: 20 }}>📋</span>
+          <span style={{ flex: 1, fontSize: 13, color: "#065F46", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filename}</span>
+          <button onClick={remove} style={{ background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+      ) : (
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px", background: "#F7F5FF", border: "2px dashed #C4B5FD", borderRadius: 12, cursor: uploading ? "not-allowed" : "pointer" }}>
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style={{ display: "none" }} onChange={handleFile} disabled={uploading} />
+          {uploading
+            ? <span style={{ fontSize: 13, color: "#6B6B9A" }}>Uploading…</span>
+            : <>
+                <span style={{ fontSize: 20 }}>📸</span>
+                <span style={{ fontSize: 13, color: "#6B6B9A", fontWeight: 600 }}>
+                  {mandatory ? "Upload prescription to continue" : "Upload prescription (optional)"}
+                </span>
+              </>}
+        </label>
+      )}
+      {!url && !mandatory && (
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9B9BC0" }}>For pickup orders you can bring the physical prescription to the pharmacy.</p>
+      )}
+      {err && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#DC2626" }}>{err}</p>}
+    </div>
+  );
+}
+
 function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps) {
   const [qty, setQty] = useState(1);
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
@@ -55,6 +126,7 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
   const [city, setCity] = useState(pharmacy.city ?? "");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [notes, setNotes] = useState("");
+  const [prescriptionUrl, setPrescriptionUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -62,10 +134,14 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
   const deliveryFee = deliveryType === "DELIVERY" ? 2.0 : 0;
   const subtotal = price * qty;
   const total = subtotal + deliveryFee;
+  const rxMandatory = medicine.requiresPrescription && deliveryType === "DELIVERY";
 
   async function submit() {
     if (deliveryType === "DELIVERY" && !address.trim()) {
       setError("Enter your delivery address"); return;
+    }
+    if (rxMandatory && !prescriptionUrl) {
+      setError("Please upload your prescription to continue"); return;
     }
     setError("");
     setLoading(true);
@@ -79,6 +155,7 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
         deliveryCity: deliveryType === "DELIVERY" ? city : undefined,
         paymentMethod,
         notes: notes.trim() || undefined,
+        prescriptionUrl: prescriptionUrl ?? undefined,
       });
       onSuccess(data);
     } catch (err: any) {
@@ -126,13 +203,16 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
           <p style={{ margin: 0, fontWeight: 800, fontSize: 16, color: "#180D62" }}>${price.toFixed(2)}</p>
         </div>
 
-        {medicine.requiresPrescription && (
-          <div style={{ background: "#FEE2E2", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626", fontWeight: 500 }}>
-            ⚕️ This medicine requires a prescription. Please bring it when collecting your order.
-          </div>
-        )}
-
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Prescription upload */}
+          {medicine.requiresPrescription && (
+            <PrescriptionUploader
+              required={medicine.requiresPrescription}
+              deliveryType={deliveryType}
+              onChange={setPrescriptionUrl}
+            />
+          )}
+
           {/* Quantity */}
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Quantity</label>

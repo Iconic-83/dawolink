@@ -127,4 +127,51 @@ export class OrderService {
 
     return updated;
   }
+
+  async verifyPrescription(pharmacyId: string, id: string) {
+    const order = await this.prisma.medicineOrder.findFirst({ where: { id, pharmacyId } });
+    if (!order) throw new NotFoundException("Order not found");
+    if (!order.prescriptionUrl) throw new BadRequestException("No prescription attached");
+
+    const updated = await this.prisma.medicineOrder.update({
+      where: { id },
+      data: { prescriptionStatus: "VERIFIED", prescriptionRejectReason: null },
+      include: { items: true, appUser: { select: { id: true, name: true, phone: true, city: true } } },
+    });
+
+    this.push.sendToUser(order.appUserId, {
+      title: "Prescription Verified ✅",
+      body: "Your prescription has been verified. Your order is being processed.",
+      tag: `rx-${id}`,
+      data: { url: `/shop/orders/${id}` },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  async rejectPrescription(pharmacyId: string, id: string, reason: string) {
+    const order = await this.prisma.medicineOrder.findFirst({ where: { id, pharmacyId } });
+    if (!order) throw new NotFoundException("Order not found");
+    if (!order.prescriptionUrl) throw new BadRequestException("No prescription attached");
+
+    const updated = await this.prisma.medicineOrder.update({
+      where: { id },
+      data: {
+        prescriptionStatus: "REJECTED",
+        prescriptionRejectReason: reason,
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+      },
+      include: { items: true, appUser: { select: { id: true, name: true, phone: true, city: true } } },
+    });
+
+    this.push.sendToUser(order.appUserId, {
+      title: "Prescription Rejected ❌",
+      body: `Your prescription was rejected: ${reason}. Your order has been cancelled.`,
+      tag: `rx-${id}`,
+      data: { url: `/shop/orders/${id}` },
+    }).catch(() => {});
+
+    return updated;
+  }
 }

@@ -10,8 +10,16 @@ import { toast } from "sonner";
 import {
   ShoppingBag, Clock, CheckCircle2, Loader2, XCircle,
   Package, Truck, Phone, MapPin, ChevronRight,
-  RefreshCw, User, AlertTriangle,
+  RefreshCw, User, AlertTriangle, FileText,
 } from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
+
+const RX_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING_REVIEW: { label: "Rx — Awaiting Review", color: "#92400E", bg: "#FEF3C7" },
+  VERIFIED:       { label: "Rx Verified",           color: "#065F46", bg: "#DCFCE7" },
+  REJECTED:       { label: "Rx Rejected",           color: "#991B1B", bg: "#FEE2E2" },
+};
 
 // ── Status config ──────────────────────────────────────────────────────────
 
@@ -105,9 +113,103 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 // ── Order detail modal ─────────────────────────────────────────────────────
 
-function OrderDetailModal({ order, onClose, onStatusChange }: {
+function PrescriptionPanel({ order, onAction }: { order: any; onAction: () => void }) {
+  const qc = useQueryClient();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const { mutate: verify, isPending: verifying } = useMutation({
+    mutationFn: () => api.patch(`/v1/orders/${order.id}/prescription/verify`).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Prescription verified"); onAction(); },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
+
+  const { mutate: reject, isPending: rejecting } = useMutation({
+    mutationFn: () => api.patch(`/v1/orders/${order.id}/prescription/reject`, { reason }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Prescription rejected — order cancelled"); setRejectOpen(false); onAction(); },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
+
+  const rxMeta = RX_STATUS[order.prescriptionStatus];
+  const isPdf = order.prescriptionUrl?.endsWith(".pdf");
+  const fullUrl = `${API_BASE}${order.prescriptionUrl}`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Prescription</p>
+        {rxMeta && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: rxMeta.bg, color: rxMeta.color }}>
+            {rxMeta.label}
+          </span>
+        )}
+      </div>
+
+      {/* Preview */}
+      <a href={fullUrl} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-gray-100 hover:opacity-90 transition">
+        {isPdf ? (
+          <div className="flex items-center gap-3 p-4 bg-gray-50">
+            <FileText className="h-8 w-8 text-gray-400" />
+            <div>
+              <p className="text-sm font-medium text-gray-700">Prescription PDF</p>
+              <p className="text-xs text-gray-400">Click to open in new tab</p>
+            </div>
+          </div>
+        ) : (
+          <img src={fullUrl} alt="Prescription" className="w-full max-h-56 object-contain bg-gray-50" />
+        )}
+      </a>
+
+      {order.prescriptionStatus === "PENDING_REVIEW" && (
+        <>
+          <div className="flex gap-2">
+            <button
+              onClick={() => verify()}
+              disabled={verifying}
+              className="flex-1 py-2 rounded-lg text-xs font-bold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition disabled:opacity-50 flex items-center justify-center gap-1"
+            >
+              {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : "✓"} Verify Prescription
+            </button>
+            <button
+              onClick={() => setRejectOpen(true)}
+              className="flex-1 py-2 rounded-lg text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition"
+            >
+              ✕ Reject
+            </button>
+          </div>
+
+          {rejectOpen && (
+            <div className="border border-red-100 rounded-xl p-3 bg-red-50 space-y-2">
+              <p className="text-xs font-semibold text-red-700">Rejection reason *</p>
+              <textarea
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. Prescription is expired, illegible, or not valid for this medicine…"
+                className="w-full text-xs p-2 rounded-lg border border-red-200 resize-none outline-none bg-white"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setRejectOpen(false)} className="flex-1 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500">Cancel</button>
+                <button
+                  onClick={() => reject()}
+                  disabled={!reason.trim() || rejecting}
+                  className="flex-1 py-1.5 text-xs rounded-lg bg-red-600 text-white font-bold disabled:opacity-50"
+                >
+                  {rejecting ? "Rejecting…" : "Confirm Reject"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function OrderDetailModal({ order: initialOrder, onClose, onStatusChange }: {
   order: any; onClose: () => void; onStatusChange: (status: string) => void;
 }) {
+  const [order, setOrder] = useState(initialOrder);
   const meta = STATUS_META[order.status] ?? STATUS_META.PENDING;
 
   return (
@@ -205,6 +307,17 @@ function OrderDetailModal({ order, onClose, onStatusChange }: {
             {order.notes}
           </div>
         )}
+
+        {/* Prescription review */}
+        {order.prescriptionUrl && (
+          <PrescriptionPanel
+            order={order}
+            onAction={() => {
+              // Refresh order data locally after prescription action
+              api.get(`/v1/orders/${order.id}`).then(r => setOrder(r.data)).catch(() => {});
+            }}
+          />
+        )}
       </div>
     </Modal>
   );
@@ -253,6 +366,17 @@ function OrderCard({ order, onOpen, onStatusChange, isUpdating }: {
         <p className="text-sm text-gray-600 mb-3 line-clamp-1">
           {order.items?.map((i: any) => `${i.medicineName} ×${i.quantity}`).join("  ·  ")}
         </p>
+
+        {/* Prescription badge */}
+        {order.prescriptionStatus && order.prescriptionStatus !== "NONE" && (() => {
+          const rx = RX_STATUS[order.prescriptionStatus];
+          return rx ? (
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full mb-2"
+              style={{ background: rx.bg, color: rx.color }}>
+              <FileText className="h-3 w-3" /> {rx.label}
+            </span>
+          ) : null;
+        })()}
 
         {/* Footer row */}
         <div className="flex items-center justify-between">
@@ -438,7 +562,7 @@ export default function OrdersPage() {
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          onStatusChange={(status) => updateStatus({ id: selectedOrder.id, status })}
+          onStatusChange={(status) => { updateStatus({ id: selectedOrder.id, status }); }}
         />
       )}
     </div>
