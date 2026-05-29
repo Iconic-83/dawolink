@@ -1,17 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { AddSupplierModal } from "@/components/suppliers/AddSupplierModal";
 import { CreatePOModal } from "@/components/suppliers/CreatePOModal";
+import { ReceivePOModal } from "@/components/suppliers/ReceivePOModal";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   Plus, Search, Truck, ClipboardList,
-  Phone, Mail, MapPin, Star, FileText,
+  Phone, Mail, MapPin, Star, FileText, CheckCircle2, PackageCheck,
 } from "lucide-react";
 
 type Tab = "suppliers" | "orders";
@@ -25,11 +27,20 @@ const PO_STATUS: Record<string, { label: string; variant: any }> = {
 };
 
 export default function SuppliersPage() {
+  const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("suppliers");
   const [search, setSearch] = useState("");
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [showCreatePO, setShowCreatePO] = useState(false);
   const [prefillSupplier, setPrefillSupplier] = useState<string | undefined>();
+  const [receivingOrder, setReceivingOrder] = useState<any>(null);
+
+  const { mutate: confirmOrder } = useMutation({
+    mutationFn: (id: string) =>
+      api.patch(`/v1/suppliers/purchase-orders/${id}/status`, { status: "CONFIRMED" }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["purchase-orders"] }); toast.success("Order confirmed"); },
+    onError: (err: any) => toast.error(err.response?.data?.message ?? "Failed to confirm"),
+  });
 
   const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery<any[]>({
     queryKey: ["suppliers"],
@@ -214,7 +225,7 @@ export default function SuppliersPage() {
                   <th className="px-4 py-3">Total</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Received</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -237,8 +248,28 @@ export default function SuppliersPage() {
                       <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(Number(order.totalAmount))}</td>
                       <td className="px-4 py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(order.orderedAt)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        {order.receivedAt ? formatDate(order.receivedAt) : <span className="text-gray-300">—</span>}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {order.status === "PENDING" && (
+                            <button
+                              onClick={() => confirmOrder(order.id)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Confirm
+                            </button>
+                          )}
+                          {(order.status === "CONFIRMED" || order.status === "PENDING") && (
+                            <button
+                              onClick={() => setReceivingOrder(order)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition"
+                            >
+                              <PackageCheck className="h-3.5 w-3.5" /> Receive
+                            </button>
+                          )}
+                          {order.status === "RECEIVED" && (
+                            <span className="text-xs text-gray-400">{order.receivedAt ? formatDate(order.receivedAt) : "—"}</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -251,6 +282,9 @@ export default function SuppliersPage() {
 
       <AddSupplierModal open={showAddSupplier} onClose={() => setShowAddSupplier(false)} />
       <CreatePOModal open={showCreatePO} onClose={() => setShowCreatePO(false)} prefillSupplierId={prefillSupplier} />
+      {receivingOrder && (
+        <ReceivePOModal open={!!receivingOrder} onClose={() => setReceivingOrder(null)} order={receivingOrder} />
+      )}
     </div>
   );
 }

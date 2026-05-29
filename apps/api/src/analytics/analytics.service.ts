@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
+import { Prisma } from "@dawolink/database";
 
 @Injectable()
 export class AnalyticsService {
@@ -12,8 +13,16 @@ export class AnalyticsService {
     });
     const branchIds = branches.map((b) => b.id);
 
+    if (!branchIds.length) {
+      return {
+        today: { revenue: 0, transactions: 0 },
+        month: { revenue: 0 },
+        inventory: { totalMedicines: 0, lowStockCount: 0, expiringCount: 0 },
+      };
+    }
+
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const [todayRevenue, monthRevenue, totalMedicines, lowStockCount, expiringCount] = await Promise.all([
@@ -27,14 +36,16 @@ export class AnalyticsService {
         _sum: { total: true },
       }),
       this.prisma.medicine.count({ where: { pharmacyId, isActive: true } }),
-      this.prisma.$queryRaw<{ count: bigint }[]>`
-        SELECT COUNT(*) as count FROM inventory_items
-        WHERE branch_id = ANY(${branchIds}) AND quantity <= reorder_level
-      `,
+      // Raw query with IN instead of ANY to avoid Prisma array parameterization issues
+      this.prisma.$queryRaw<{ count: bigint }[]>(
+        Prisma.sql`SELECT COUNT(*)::int as count FROM inventory_items
+                   WHERE branch_id IN (${Prisma.join(branchIds)})
+                   AND quantity <= reorder_level`
+      ),
       this.prisma.inventoryItem.count({
         where: {
           branchId: { in: branchIds },
-          expiryDate: { lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+          expiryDate: { lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), not: null },
           quantity: { gt: 0 },
         },
       }),
@@ -57,47 +68,48 @@ export class AnalyticsService {
   }
 
   async getRevenueTrend(pharmacyId: string, days = 30) {
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-
     const branches = await this.prisma.branch.findMany({
       where: { pharmacyId },
       select: { id: true },
     });
     const branchIds = branches.map((b) => b.id);
+    if (!branchIds.length) return [];
 
-    return this.prisma.$queryRaw`
-      SELECT
-        DATE(created_at) as date,
-        SUM(total) as revenue,
-        COUNT(*) as transactions
-      FROM transactions
-      WHERE branch_id = ANY(${branchIds})
-        AND created_at >= ${start}
-        AND status = 'COMPLETED'
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `;
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+
+    return this.prisma.$queryRaw(
+      Prisma.sql`
+        SELECT DATE(created_at) as date,
+               SUM(total)::float as revenue,
+               COUNT(*)::int as transactions
+        FROM transactions
+        WHERE branch_id IN (${Prisma.join(branchIds)})
+          AND created_at >= ${start}
+          AND status = 'COMPLETED'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `
+    );
   }
 
   async getTopMedicines(branchId: string, limit = 10) {
-    return this.prisma.$queryRaw`
-      SELECT
-        m.id,
-        m.name,
-        m.category,
-        SUM(ti.quantity) as total_sold,
-        SUM(ti.total) as total_revenue
-      FROM transaction_items ti
-      JOIN medicines m ON ti.medicine_id = m.id
-      JOIN transactions t ON ti.transaction_id = t.id
-      WHERE t.branch_id = ${branchId}
-        AND t.status = 'COMPLETED'
-        AND t.created_at >= NOW() - INTERVAL '30 days'
-      GROUP BY m.id, m.name, m.category
-      ORDER BY total_sold DESC
-      LIMIT ${limit}
-    `;
+    return this.prisma.$queryRaw(
+      Prisma.sql`
+        SELECT m.id, m.name, m.category,
+               SUM(ti.quantity)::int as total_sold,
+               SUM(ti.total)::float as total_revenue
+        FROM transaction_items ti
+        JOIN medicines m ON ti.medicine_id = m.id
+        JOIN transactions t ON ti.transaction_id = t.id
+        WHERE t.branch_id = ${branchId}
+          AND t.status = 'COMPLETED'
+          AND t.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY m.id, m.name, m.category
+        ORDER BY total_sold DESC
+        LIMIT ${limit}
+      `
+    );
   }
 
   async getBranchComparison(pharmacyId: string) {
@@ -115,7 +127,6 @@ export class AnalyticsService {
           _sum: { total: true },
           _count: true,
         });
-
         return {
           branchId: branch.id,
           branchName: branch.name,
