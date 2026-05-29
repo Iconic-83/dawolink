@@ -79,8 +79,18 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    mode: "onBlur",
+    defaultValues: {
+      pharmacyName: "", firstName: "", lastName: "",
+      email: "", phone: "", password: "", confirmPassword: "",
+    },
+  });
+
+  const showError = (field: keyof FormData) =>
+    (touchedFields[field] || isSubmitted) ? errors[field]?.message : undefined;
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -152,7 +162,7 @@ export default function RegisterPage() {
           <Input
             {...register("pharmacyName")}
             placeholder="e.g. Al-Noor Pharmacy"
-            hasError={!!errors.pharmacyName}
+            hasError={!!(touchedFields.pharmacyName || isSubmitted) && !!errors.pharmacyName}
             icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -160,7 +170,7 @@ export default function RegisterPage() {
               </svg>
             }
           />
-          <FieldError msg={errors.pharmacyName?.message} />
+          <FieldError msg={showError("pharmacyName")} />
         </div>
 
         {/* First + Last name */}
@@ -170,18 +180,18 @@ export default function RegisterPage() {
             <Input
               {...register("firstName")}
               placeholder="Ahmed"
-              hasError={!!errors.firstName}
+              hasError={!!(touchedFields.firstName || isSubmitted) && !!errors.firstName}
             />
-            <FieldError msg={errors.firstName?.message} />
+            <FieldError msg={showError("firstName")} />
           </div>
           <div>
             <Label>Last Name</Label>
             <Input
               {...register("lastName")}
               placeholder="Hassan"
-              hasError={!!errors.lastName}
+              hasError={!!(touchedFields.lastName || isSubmitted) && !!errors.lastName}
             />
-            <FieldError msg={errors.lastName?.message} />
+            <FieldError msg={showError("lastName")} />
           </div>
         </div>
 
@@ -192,7 +202,7 @@ export default function RegisterPage() {
             {...register("email")}
             type="email"
             placeholder="owner@pharmacy.so"
-            hasError={!!errors.email}
+            hasError={!!(touchedFields.email || isSubmitted) && !!errors.email}
             autoComplete="email"
             icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
@@ -201,7 +211,7 @@ export default function RegisterPage() {
               </svg>
             }
           />
-          <FieldError msg={errors.email?.message} />
+          <FieldError msg={showError("email")} />
         </div>
 
         {/* Phone (optional) */}
@@ -229,7 +239,7 @@ export default function RegisterPage() {
             {...register("password")}
             type={showPw ? "text" : "password"}
             placeholder="Min. 8 characters"
-            hasError={!!errors.password}
+            hasError={!!(touchedFields.password || isSubmitted) && !!errors.password}
             autoComplete="new-password"
             icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
@@ -243,7 +253,7 @@ export default function RegisterPage() {
               </button>
             }
           />
-          <FieldError msg={errors.password?.message} />
+          <FieldError msg={showError("password")} />
         </div>
 
         {/* Confirm Password */}
@@ -253,7 +263,7 @@ export default function RegisterPage() {
             {...register("confirmPassword")}
             type={showConfirm ? "text" : "password"}
             placeholder="Repeat your password"
-            hasError={!!errors.confirmPassword}
+            hasError={!!(touchedFields.confirmPassword || isSubmitted) && !!errors.confirmPassword}
             autoComplete="new-password"
             icon={
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B9BC0" strokeWidth="2">
@@ -266,7 +276,7 @@ export default function RegisterPage() {
               </button>
             }
           />
-          <FieldError msg={errors.confirmPassword?.message} />
+          <FieldError msg={showError("confirmPassword")} />
         </div>
 
         {/* Terms notice */}

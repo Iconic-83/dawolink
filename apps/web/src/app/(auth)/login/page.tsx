@@ -25,8 +25,15 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    mode: "onBlur",
+    defaultValues: { email: "", password: "" },
+  });
+
+  const showError = (field: keyof FormData) =>
+    (touchedFields[field] || isSubmitted) ? errors[field]?.message : undefined;
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -85,7 +92,7 @@ export default function LoginPage() {
                 width: "100%",
                 padding: "12px 14px 12px 42px",
                 borderRadius: 10,
-                border: errors.email ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
+                border: showError("email") ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
                 background: "white",
                 fontSize: 14,
                 color: "#180D62",
@@ -94,11 +101,11 @@ export default function LoginPage() {
                 transition: "border-color 0.15s",
               }}
               onFocus={e => (e.target.style.borderColor = "#2D1B8E")}
-              onBlur={e => (e.target.style.borderColor = errors.email ? "#EF4444" : "#E8E4FF")}
+              onBlur={e => (e.target.style.borderColor = showError("email") ? "#EF4444" : "#E8E4FF")}
             />
           </div>
-          {errors.email && (
-            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{errors.email.message}</p>
+          {showError("email") && (
+            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{showError("email")}</p>
           )}
         </div>
 
@@ -129,7 +136,7 @@ export default function LoginPage() {
                 width: "100%",
                 padding: "12px 44px 12px 42px",
                 borderRadius: 10,
-                border: errors.password ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
+                border: showError("password") ? "1.5px solid #EF4444" : "1.5px solid #E8E4FF",
                 background: "white",
                 fontSize: 14,
                 color: "#180D62",
@@ -138,7 +145,7 @@ export default function LoginPage() {
                 transition: "border-color 0.15s",
               }}
               onFocus={e => (e.target.style.borderColor = "#2D1B8E")}
-              onBlur={e => (e.target.style.borderColor = errors.password ? "#EF4444" : "#E8E4FF")}
+              onBlur={e => (e.target.style.borderColor = showError("password") ? "#EF4444" : "#E8E4FF")}
             />
             <button
               type="button"
@@ -160,8 +167,8 @@ export default function LoginPage() {
               )}
             </button>
           </div>
-          {errors.password && (
-            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{errors.password.message}</p>
+          {showError("password") && (
+            <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{showError("password")}</p>
           )}
         </div>
 
