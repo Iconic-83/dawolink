@@ -1,11 +1,12 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, Req, HttpCode, HttpStatus,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { MarketplaceService } from "./marketplace.service";
 import { CustomerGuard } from "./guards/customer.guard";
+import { PushService } from "../push/push.service";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
@@ -13,7 +14,10 @@ import { CreateOrderDto } from "./dto/create-order.dto";
 @ApiTags("Marketplace")
 @Controller("v1/marketplace")
 export class MarketplaceController {
-  constructor(private service: MarketplaceService) {}
+  constructor(
+    private service: MarketplaceService,
+    private push: PushService,
+  ) {}
 
   // ── Auth ─────────────────────────────────────────────────────────────────
 
@@ -37,6 +41,36 @@ export class MarketplaceController {
   me(@Req() req: any) {
     const { passwordHash: _, ...safe } = req.user;
     return safe;
+  }
+
+  // ── Push Notifications ────────────────────────────────────────────────────
+
+  @Get("push/vapid-public-key")
+  @ApiOperation({ summary: "VAPID public key for push subscription (public)" })
+  vapidKey() {
+    return { key: this.push.getPublicKey() };
+  }
+
+  @Post("push/subscribe")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Save push subscription for the current customer" })
+  subscribe(
+    @Req() req: any,
+    @Body("endpoint") endpoint: string,
+    @Body("p256dh") p256dh: string,
+    @Body("auth") auth: string,
+  ) {
+    const ua = req.headers?.["user-agent"];
+    return this.push.saveSubscription(req.user.id, endpoint, p256dh, auth, ua);
+  }
+
+  @Delete("push/unsubscribe")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Remove push subscription" })
+  unsubscribe(@Body("endpoint") endpoint: string) {
+    return this.push.deleteSubscription(endpoint);
   }
 
   // ── Public medicine search & detail ──────────────────────────────────────

@@ -384,9 +384,25 @@ model AppUser {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  orders       MedicineOrder[]
+  orders            MedicineOrder[]
+  pushSubscriptions AppPushSubscription[]
 
   @@map("app_users")
+}
+
+model AppPushSubscription {
+  id        String   @id @default(cuid())
+  appUserId String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appUser   AppUser  @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@map("app_push_subscriptions")
 }
 
 model MedicineOrder {

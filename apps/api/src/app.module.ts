@@ -20,6 +20,7 @@ import { CustomerModule } from "./customer/customer.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
 import { OrderModule } from "./order/order.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { PushModule } from "./push/push.module";
 
 @Module({
   controllers: [HealthController],
@@ -42,6 +43,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
     AnalyticsModule,
     CustomerModule,
     NotificationsModule,
+    PushModule,
     MarketplaceModule,
     OrderModule,
   ],

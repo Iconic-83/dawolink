@@ -3,6 +3,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { PushService } from "../push/push.service";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
@@ -13,6 +14,7 @@ export class MarketplaceService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private notifications: NotificationsService,
+    private push: PushService,
   ) {}
 
   // ── Customer Auth ─────────────────────────────────────────────────────────
@@ -297,6 +299,14 @@ export class MarketplaceService {
         appUser: { select: { name: true } },
       },
     });
+
+    // Push confirmation to customer (fire-and-forget)
+    this.push.sendToUser(appUserId, {
+      title: "Order Received! 🛍️",
+      body: `${order.pharmacy?.name ?? "The pharmacy"} has received your order ${order.orderNo}. We'll confirm it shortly.`,
+      tag: `order-${order.id}`,
+      data: { url: `/shop/orders/${order.id}` },
+    }).catch(() => {/* non-critical */});
 
     // Notify connected pharmacy staff immediately
     this.notifications.emit(dto.pharmacyId, "new_order", {

@@ -11,6 +11,7 @@ module.exports = withPWA({
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: false,
   disable: process.env.NODE_ENV === "development",
+  customWorkerSrc: "worker",
   workboxOptions: {
     disableDevLogs: true,
     runtimeCaching: [

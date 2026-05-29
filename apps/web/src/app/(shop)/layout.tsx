@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCustomerAuth } from "@/lib/customer-auth";
+import { PushPermissionBanner } from "@/components/shop/PushPermissionBanner";
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -86,6 +87,8 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       <footer style={{ textAlign: "center", padding: "32px 16px", color: "#9B9BC0", fontSize: 12 }}>
         © {new Date().getFullYear()} DawoLink · Somalia
       </footer>
+
+      <PushPermissionBanner appUserId={user?.id} />
     </div>
   );
 }

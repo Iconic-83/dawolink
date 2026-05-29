@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
+import { PushService } from "../push/push.service";
 
-// Valid next status for each current status (pharmacy side)
 const NEXT_STATUS: Record<string, string[]> = {
   PENDING:          ["CONFIRMED", "CANCELLED"],
   CONFIRMED:        ["PREPARING", "CANCELLED"],
@@ -12,9 +12,22 @@ const NEXT_STATUS: Record<string, string[]> = {
   CANCELLED:        [],
 };
 
+// Messages sent to the customer for each status transition (pharmacy-initiated)
+const PUSH_MESSAGES: Record<string, (orderNo: string, pharmacyName: string) => { title: string; body: string }> = {
+  CONFIRMED:        (no, ph) => ({ title: "Order Confirmed! ✅",        body: `${ph} has confirmed ${no} and will start preparing it soon.` }),
+  PREPARING:        (no, ph) => ({ title: "Preparing Your Order 👨‍⚕️", body: `${ph} is now preparing ${no}. Almost ready!` }),
+  READY_FOR_PICKUP: (no, ph) => ({ title: "Ready for Pickup! 📦",       body: `${no} is ready. Head to ${ph} to collect it.` }),
+  OUT_FOR_DELIVERY: (no, _)  => ({ title: "On the Way! 🚚",             body: `${no} is out for delivery. Expect it shortly.` }),
+  DELIVERED:        (no, _)  => ({ title: "Delivered! 🎉",              body: `${no} has been delivered. Enjoy your medicines.` }),
+  CANCELLED:        (no, ph) => ({ title: "Order Cancelled ❌",          body: `${ph} has cancelled ${no}. Contact them for details.` }),
+};
+
 @Injectable()
 export class OrderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private push: PushService,
+  ) {}
 
   async getOrders(pharmacyId: string, status?: string) {
     return this.prisma.medicineOrder.findMany({
@@ -72,7 +85,10 @@ export class OrderService {
   }
 
   async updateStatus(pharmacyId: string, id: string, status: string) {
-    const order = await this.prisma.medicineOrder.findFirst({ where: { id, pharmacyId } });
+    const order = await this.prisma.medicineOrder.findFirst({
+      where: { id, pharmacyId },
+      include: { pharmacy: { select: { name: true } } },
+    });
     if (!order) throw new NotFoundException("Order not found");
 
     const allowed = NEXT_STATUS[order.status] ?? [];
@@ -83,18 +99,32 @@ export class OrderService {
     }
 
     const now = new Date();
-    return this.prisma.medicineOrder.update({
+    const updated = await this.prisma.medicineOrder.update({
       where: { id },
       data: {
         status: status as any,
-        ...(status === "CONFIRMED"  ? { confirmedAt: now }  : {}),
-        ...(status === "DELIVERED"  ? { deliveredAt: now }  : {}),
-        ...(status === "CANCELLED"  ? { cancelledAt: now }  : {}),
+        ...(status === "CONFIRMED"  ? { confirmedAt: now } : {}),
+        ...(status === "DELIVERED"  ? { deliveredAt: now } : {}),
+        ...(status === "CANCELLED"  ? { cancelledAt: now } : {}),
       },
       include: {
         items: true,
         appUser: { select: { id: true, name: true, phone: true, city: true } },
       },
     });
+
+    // Push notification to customer (fire-and-forget)
+    const msgFn = PUSH_MESSAGES[status];
+    if (msgFn && order.appUserId) {
+      const { title, body } = msgFn(order.orderNo, order.pharmacy?.name ?? "The pharmacy");
+      this.push.sendToUser(order.appUserId, {
+        title,
+        body,
+        tag: `order-${id}`,
+        data: { url: `/shop/orders/${id}` },
+      }).catch(() => {/* non-critical */});
+    }
+
+    return updated;
   }
 }
