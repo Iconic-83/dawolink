@@ -25,6 +25,7 @@ export class MedicineService {
       where: {
         pharmacyId,
         isActive: true,
+        deletedAt: null,
         ...(search && {
           OR: [
             { name: { contains: search, mode: "insensitive" } },
@@ -39,18 +40,18 @@ export class MedicineService {
 
   async findOne(pharmacyId: string, id: string) {
     const medicine = await this.prisma.medicine.findFirst({
-      where: { id, pharmacyId },
+      where: { id, pharmacyId, deletedAt: null },
     });
     if (!medicine) throw new NotFoundException("Medicine not found");
     return medicine;
   }
 
   async findByBarcode(pharmacyId: string, barcode: string) {
-    const medicine = await this.prisma.medicine.findUnique({
-      where: { pharmacyId_barcode: { pharmacyId, barcode } },
+    const medicine = await this.prisma.medicine.findFirst({
+      where: { pharmacyId, barcode, deletedAt: null },
       include: {
         inventory: {
-          where: { quantity: { gt: 0 } },
+          where: { quantity: { gt: 0 }, deletedAt: null },
           orderBy: { expiryDate: "asc" },
           take: 1,
         },
@@ -69,7 +70,7 @@ export class MedicineService {
     await this.findOne(pharmacyId, id);
     return this.prisma.medicine.update({
       where: { id },
-      data: { isActive: false },
+      data: { isActive: false, deletedAt: new Date() },
     });
   }
 }

@@ -268,6 +268,7 @@ model Medicine {
   verificationNotes  String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
 
   pharmacy        Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   inventory       InventoryItem[]
@@ -295,6 +296,7 @@ model InventoryItem {
   location       String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   branch         Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   medicine       Medicine  @relation(fields: [medicineId], references: [id])

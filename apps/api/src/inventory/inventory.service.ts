@@ -45,6 +45,7 @@ export class InventoryService {
 
     const where: any = {
       branchId,
+      deletedAt: null,
       ...(lowStockOnly && { quantity: { lte: this.prisma.inventoryItem.fields.reorderLevel } }),
       ...(search && { medicine: { name: { contains: search, mode: "insensitive" } } }),
     };
@@ -70,14 +71,16 @@ export class InventoryService {
       JOIN medicines m ON i.medicine_id = m.id
       WHERE i.branch_id = ${branchId}
         AND i.quantity <= i.reorder_level
+        AND i."deletedAt" IS NULL
+        AND m."deletedAt" IS NULL
       ORDER BY (i.quantity::float / NULLIF(i.reorder_level, 0)) ASC
     `;
     return items;
   }
 
   async adjustStock(userId: string, pharmacyId: string, dto: StockAdjustmentDto) {
-    const item = await this.prisma.inventoryItem.findUnique({
-      where: { id: dto.itemId },
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { id: dto.itemId, deletedAt: null },
       include: { medicine: true },
     });
     if (!item) throw new NotFoundException("Inventory item not found");
@@ -108,6 +111,7 @@ export class InventoryService {
       SELECT SUM(quantity * selling_price) as total_value
       FROM inventory_items
       WHERE branch_id = ${branchId}
+        AND "deletedAt" IS NULL
     `;
     return { totalValue: Number(result[0]?.total_value ?? 0) };
   }
