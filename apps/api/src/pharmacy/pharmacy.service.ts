@@ -1,15 +1,21 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from "@nestjs/common";
+import { randomBytes } from "crypto";
 import { PrismaService } from "../common/database/prisma.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
 import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
+import { CreateInviteDto } from "./dto/create-invite.dto";
+import { MailService } from "../common/mail/mail.service";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { PLAN_LIMITS } from "../common/guards/plan.guard";
 
 @Injectable()
 export class PharmacyService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+  ) {}
 
   async create(dto: CreatePharmacyDto) {
     return this.prisma.pharmacy.create({ data: dto });
@@ -104,5 +110,72 @@ export class PharmacyService {
     if (!branch) throw new NotFoundException("Branch not found");
     if (branch.isMain) throw new ForbiddenException("Cannot deactivate the main branch");
     return this.prisma.branch.update({ where: { id: branchId }, data: { isActive: false } });
+  }
+
+  // ── Staff invites ──────────────────────────────────────────────────────────
+
+  async createInvite(
+    pharmacyId: string,
+    invitedById: string,
+    dto: CreateInviteDto,
+    frontendUrl: string,
+  ) {
+    // Check not already a staff member
+    const existing = await this.prisma.user.findFirst({ where: { email: dto.email, pharmacyId } });
+    if (existing) throw new ConflictException("This email already belongs to a staff member");
+
+    // Revoke any existing pending invite for this email+pharmacy
+    await this.prisma.staffInvite.deleteMany({
+      where: { pharmacyId, email: dto.email, acceptedAt: null },
+    });
+
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const invite = await this.prisma.staffInvite.create({
+      data: { pharmacyId, email: dto.email, role: dto.role, branchId: dto.branchId, token, invitedById, expiresAt },
+      include: { pharmacy: { select: { name: true } }, invitedBy: { select: { firstName: true, lastName: true } } },
+    });
+
+    const inviteUrl = `${frontendUrl}/invite/${token}`;
+
+    // Send email (fire-and-forget; MailService silently skips if SMTP not configured)
+    this.mail.sendStaffInvite({
+      to: dto.email,
+      pharmacyName: invite.pharmacy.name,
+      invitedByName: `${invite.invitedBy.firstName} ${invite.invitedBy.lastName}`,
+      role: dto.role,
+      inviteUrl,
+      expiresAt,
+    });
+
+    return { invite, inviteUrl, emailSent: this.mail.isEnabled };
+  }
+
+  listInvites(pharmacyId: string) {
+    return this.prisma.staffInvite.findMany({
+      where: { pharmacyId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      include: { invitedBy: { select: { firstName: true, lastName: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async revokeInvite(pharmacyId: string, id: string) {
+    const invite = await this.prisma.staffInvite.findFirst({ where: { id, pharmacyId } });
+    if (!invite) throw new NotFoundException("Invite not found");
+    await this.prisma.staffInvite.delete({ where: { id } });
+    return { success: true };
+  }
+
+  // Public — used by accept page
+  async getInviteByToken(token: string) {
+    const invite = await this.prisma.staffInvite.findUnique({
+      where: { token },
+      include: { pharmacy: { select: { name: true, city: true, logoUrl: true } } },
+    });
+    if (!invite) throw new NotFoundException("Invalid or expired invite link");
+    if (invite.acceptedAt) throw new ConflictException("This invitation has already been used");
+    if (invite.expiresAt < new Date()) throw new ConflictException("This invitation has expired");
+    return invite;
   }
 }

@@ -172,6 +172,7 @@ model Pharmacy {
 
   branches       Branch[]
   users          User[]
+  staffInvites   StaffInvite[]
   medicines      Medicine[]
   suppliers      Supplier[]
   auditLogs      AuditLog[]
@@ -225,6 +226,7 @@ model User {
   sessions       Session[]
   auditLogs      AuditLog[]
   transactions   Transaction[]
+  sentInvites    StaffInvite[]  @relation("InvitedByUser")
 
   @@map("users")
 }
@@ -714,6 +716,25 @@ enum VerificationStatus {
   PENDING_VERIFICATION
   VERIFIED
   REJECTED
+}
+
+model StaffInvite {
+  id          String    @id @default(cuid())
+  pharmacyId  String
+  email       String
+  role        UserRole
+  branchId    String?
+  token       String    @unique
+  invitedById String
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  pharmacy    Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  invitedBy   User      @relation("InvitedByUser", fields: [invitedById], references: [id])
+
+  @@index([token])
+  @@map("staff_invites")
 }
 
 enum PrescriptionStatus {

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcryptjs";
@@ -7,6 +7,7 @@ import { AuditService } from "../audit/audit.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { SignupDto } from "./dto/signup.dto";
+import { AcceptInviteDto } from "./dto/accept-invite.dto";
 
 @Injectable()
 export class AuthService {
@@ -153,6 +154,57 @@ export class AuthService {
     if (!user) return null;
     const valid = await bcrypt.compare(password, user.passwordHash);
     return valid ? user : null;
+  }
+
+  async getInvite(token: string) {
+    const invite = await this.prisma.staffInvite.findUnique({
+      where: { token },
+      include: { pharmacy: { select: { name: true, city: true, logoUrl: true } } },
+    });
+    if (!invite) throw new NotFoundException("Invalid or expired invite link");
+    if (invite.acceptedAt) throw new ConflictException("This invitation has already been used");
+    if (invite.expiresAt < new Date()) throw new BadRequestException("This invitation has expired");
+    // Return only safe fields
+    return {
+      email: invite.email,
+      role: invite.role,
+      pharmacy: invite.pharmacy,
+      expiresAt: invite.expiresAt,
+    };
+  }
+
+  async acceptInvite(dto: AcceptInviteDto) {
+    const invite = await this.prisma.staffInvite.findUnique({ where: { token: dto.token } });
+    if (!invite) throw new NotFoundException("Invalid invite link");
+    if (invite.acceptedAt) throw new ConflictException("Invitation already used");
+    if (invite.expiresAt < new Date()) throw new BadRequestException("Invitation has expired");
+
+    const existing = await this.prisma.user.findUnique({ where: { email: invite.email } });
+    if (existing) throw new ConflictException("An account with this email already exists");
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: invite.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        passwordHash,
+        role: invite.role,
+        pharmacyId: invite.pharmacyId,
+        branchId: invite.branchId,
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, role: true, pharmacyId: true },
+    });
+
+    await this.prisma.staffInvite.update({
+      where: { id: invite.id },
+      data: { acceptedAt: new Date() },
+    });
+
+    const token = this.signToken(user.id, user.pharmacyId, user.role);
+    return { user, token };
   }
 
   private signToken(userId: string, pharmacyId: string | null | undefined, role: string) {

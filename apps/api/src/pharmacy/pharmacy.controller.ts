@@ -14,6 +14,7 @@ import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
 import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
+import { CreateInviteDto } from "./dto/create-invite.dto";
 
 const LOGO_DIR = join(process.cwd(), "uploads", "logos");
 
@@ -98,5 +99,23 @@ export class PharmacyController {
   @Patch("staff/:id/reactivate")
   reactivateStaff(@Req() req: any, @Param("id") id: string) {
     return this.pharmacy.reactivateStaff(req.user.pharmacyId, id);
+  }
+
+  // ── Staff invites ──────────────────────────────────────────────────────────
+
+  @Post("invites")
+  createInvite(@Req() req: any, @Body() dto: CreateInviteDto) {
+    const frontendUrl = req.headers.origin ?? process.env.FRONTEND_URL ?? "http://localhost:3000";
+    return this.pharmacy.createInvite(req.user.pharmacyId, req.user.id, dto, frontendUrl);
+  }
+
+  @Get("invites")
+  listInvites(@Req() req: any) {
+    return this.pharmacy.listInvites(req.user.pharmacyId);
+  }
+
+  @Delete("invites/:id")
+  revokeInvite(@Req() req: any, @Param("id") id: string) {
+    return this.pharmacy.revokeInvite(req.user.pharmacyId, id);
   }
 }

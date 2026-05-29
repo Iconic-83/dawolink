@@ -1,9 +1,10 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req } from "@nestjs/common";
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, UseGuards, Req, Param } from "@nestjs/common";
 import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { SignupDto } from "./dto/signup.dto";
+import { AcceptInviteDto } from "./dto/accept-invite.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 @ApiTags("Auth")
@@ -37,5 +38,18 @@ export class AuthController {
   @ApiOperation({ summary: "Get current user profile" })
   me(@Req() req: any) {
     return req.user;
+  }
+
+  @Get("invite/:token")
+  @ApiOperation({ summary: "Get invite details by token (public)" })
+  getInvite(@Param("token") token: string) {
+    return this.auth.getInvite(token);
+  }
+
+  @Post("accept-invite")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Accept a staff invite and create account" })
+  acceptInvite(@Body() dto: AcceptInviteDto) {
+    return this.auth.acceptInvite(dto);
   }
 }

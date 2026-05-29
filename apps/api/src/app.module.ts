@@ -5,6 +5,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./common/database/database.module";
+import { MailModule } from "./common/mail/mail.module";
 import { HealthController } from "./common/health/health.controller";
 import { AuthModule } from "./auth/auth.module";
 import { InventoryModule } from "./inventory/inventory.module";
@@ -45,6 +46,7 @@ import { PushModule } from "./push/push.module";
     ExpiryModule,
     AnalyticsModule,
     CustomerModule,
+    MailModule,
     NotificationsModule,
     PushModule,
     MarketplaceModule,

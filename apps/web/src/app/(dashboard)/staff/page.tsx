@@ -6,13 +6,14 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { AddStaffModal } from "@/components/staff/AddStaffModal";
 import { EditStaffModal } from "@/components/staff/EditStaffModal";
+import { InviteStaffModal } from "@/components/staff/InviteStaffModal";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSpinner } from "@/components/ui/Spinner";
 import { toast } from "sonner";
 import {
   Plus, Search, Edit2, UserX, UserCheck,
-  Shield, Clock, Building2,
+  Shield, Clock, Building2, Mail, Trash2, Send,
 } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -45,11 +46,23 @@ export default function StaffPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [editStaff, setEditStaff] = useState<any>(null);
 
   const { data: staff = [], isLoading } = useQuery<any[]>({
     queryKey: ["staff"],
     queryFn: () => api.get("/v1/pharmacy/staff").then(r => r.data),
+  });
+
+  const { data: invites = [] } = useQuery<any[]>({
+    queryKey: ["staff-invites"],
+    queryFn: () => api.get("/v1/pharmacy/invites").then(r => r.data),
+  });
+
+  const { mutate: revokeInvite } = useMutation({
+    mutationFn: (id: string) => api.delete(`/v1/pharmacy/invites/${id}`).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["staff-invites"] }); toast.success("Invite revoked"); },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
   });
 
   const { mutate: toggleStatus } = useMutation({
@@ -87,13 +100,22 @@ export default function StaffPage() {
           <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage team members, roles & access</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition"
-        >
-          <Plus className="h-4 w-4" />
-          Add Staff
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-600 hover:bg-blue-50 text-sm font-medium rounded-xl transition"
+          >
+            <Send className="h-4 w-4" />
+            Invite by Email
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition"
+          >
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </button>
+        </div>
       </div>
 
       {/* Stats + Role breakdown */}
@@ -154,6 +176,42 @@ export default function StaffPage() {
           )}
         </div>
       </div>
+
+      {/* Pending invites */}
+      {invites.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-100 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-100 bg-amber-50">
+            <Mail className="h-4 w-4 text-amber-600" />
+            <p className="text-sm font-semibold text-amber-800">{invites.length} pending invite{invites.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {invites.map((inv: any) => (
+              <div key={inv.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <Mail className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{inv.email}</p>
+                    <p className="text-xs text-gray-400">
+                      {ROLE_META[inv.role]?.icon} {ROLE_META[inv.role]?.label ?? inv.role}
+                      {" · "}Invited by {inv.invitedBy?.firstName} {inv.invitedBy?.lastName}
+                      {" · "}Expires {dayjs(inv.expiresAt).fromNow()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => revokeInvite(inv.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                  title="Revoke invite"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -279,6 +337,7 @@ export default function StaffPage() {
 
       <AddStaffModal open={showAdd} onClose={() => setShowAdd(false)} pharmacyId={user?.pharmacyId ?? ""} />
       <EditStaffModal open={!!editStaff} onClose={() => setEditStaff(null)} staff={editStaff} />
+      <InviteStaffModal open={showInvite} onClose={() => setShowInvite(false)} />
     </div>
   );
 }
