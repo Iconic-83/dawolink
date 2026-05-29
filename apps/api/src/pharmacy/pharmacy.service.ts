@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/commo
 import { PrismaService } from "../common/database/prisma.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
+import { UpdateBranchDto } from "./dto/update-branch.dto";
+import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { PLAN_LIMITS } from "../common/guards/plan.guard";
 
@@ -73,5 +75,34 @@ export class PharmacyService {
 
   async reactivateStaff(pharmacyId: string, userId: string) {
     return this.updateStaff(pharmacyId, userId, { isActive: true });
+  }
+
+  async updateProfile(pharmacyId: string, dto: UpdatePharmacyDto) {
+    return this.prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: dto,
+      include: { branches: { where: { isActive: true } } },
+    });
+  }
+
+  async updateLogo(pharmacyId: string, logoUrl: string) {
+    return this.prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: { logoUrl },
+      select: { id: true, logoUrl: true },
+    });
+  }
+
+  async updateBranch(pharmacyId: string, branchId: string, dto: UpdateBranchDto) {
+    const branch = await this.prisma.branch.findFirst({ where: { id: branchId, pharmacyId } });
+    if (!branch) throw new NotFoundException("Branch not found");
+    return this.prisma.branch.update({ where: { id: branchId }, data: dto });
+  }
+
+  async deactivateBranch(pharmacyId: string, branchId: string) {
+    const branch = await this.prisma.branch.findFirst({ where: { id: branchId, pharmacyId } });
+    if (!branch) throw new NotFoundException("Branch not found");
+    if (branch.isMain) throw new ForbiddenException("Cannot deactivate the main branch");
+    return this.prisma.branch.update({ where: { id: branchId }, data: { isActive: false } });
   }
 }

@@ -1,10 +1,21 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Req } from "@nestjs/common";
-import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
+import {
+  Controller, Get, Post, Patch, Delete, Body, Param,
+  UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ApiTags, ApiBearerAuth, ApiConsumes } from "@nestjs/swagger";
+import { diskStorage } from "multer";
+import { extname, join } from "path";
+import { v4 as uuidv4 } from "uuid";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PharmacyService } from "./pharmacy.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
+import { UpdateBranchDto } from "./dto/update-branch.dto";
+import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
+
+const LOGO_DIR = join(process.cwd(), "uploads", "logos");
 
 @ApiTags("Pharmacy")
 @ApiBearerAuth()
@@ -23,6 +34,32 @@ export class PharmacyController {
     return this.pharmacy.findOne(req.user.pharmacyId);
   }
 
+  @Patch("me")
+  updateProfile(@Req() req: any, @Body() dto: UpdatePharmacyDto) {
+    return this.pharmacy.updateProfile(req.user.pharmacyId, dto);
+  }
+
+  @Post("logo")
+  @ApiConsumes("multipart/form-data")
+  @UseInterceptors(
+    FileInterceptor("logo", {
+      storage: diskStorage({
+        destination: LOGO_DIR,
+        filename: (_req, _file, cb) => cb(null, `${uuidv4()}${extname(_file.originalname).toLowerCase()}`),
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
+        else cb(new BadRequestException("Only JPEG, PNG or WebP images are accepted"), false);
+      },
+    }),
+  )
+  uploadLogo(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException("No file received");
+    const logoUrl = `/uploads/logos/${file.filename}`;
+    return this.pharmacy.updateLogo(req.user.pharmacyId, logoUrl);
+  }
+
   @Get("branches")
   getBranches(@Req() req: any) {
     return this.pharmacy.getBranches(req.user.pharmacyId);
@@ -31,6 +68,16 @@ export class PharmacyController {
   @Post("branches")
   createBranch(@Req() req: any, @Body() dto: CreateBranchDto) {
     return this.pharmacy.createBranch(req.user.pharmacyId, dto);
+  }
+
+  @Patch("branches/:id")
+  updateBranch(@Req() req: any, @Param("id") id: string, @Body() dto: UpdateBranchDto) {
+    return this.pharmacy.updateBranch(req.user.pharmacyId, id, dto);
+  }
+
+  @Delete("branches/:id")
+  deactivateBranch(@Req() req: any, @Param("id") id: string) {
+    return this.pharmacy.deactivateBranch(req.user.pharmacyId, id);
   }
 
   @Get("staff")
