@@ -16,6 +16,7 @@ import { RbacModule } from "./rbac/rbac.module";
 import { GlobalMedicineModule } from "./global-medicine/global-medicine.module";
 import { BillingModule } from "./billing/billing.module";
 import { AuditModule } from "./audit/audit.module";
+import { CustomerModule } from "./customer/customer.module";
 
 @Module({
   controllers: [HealthController],
@@ -36,6 +37,7 @@ import { AuditModule } from "./audit/audit.module";
     SupplierModule,
     ExpiryModule,
     AnalyticsModule,
+    CustomerModule,
   ],
 })
 export class AppModule {}
