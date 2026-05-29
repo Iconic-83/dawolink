@@ -1,9 +1,57 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
+import { CustomerRegisterDto } from "./dto/customer-register.dto";
+import { CustomerLoginDto } from "./dto/customer-login.dto";
 
 @Injectable()
 export class MarketplaceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+  ) {}
+
+  // ── Customer Auth ─────────────────────────────────────────────────────────
+
+  async register(dto: CustomerRegisterDto) {
+    const byPhone = await this.prisma.appUser.findUnique({ where: { phone: dto.phone } });
+    if (byPhone) throw new ConflictException("Phone number already registered");
+
+    if (dto.email) {
+      const byEmail = await this.prisma.appUser.findUnique({ where: { email: dto.email } });
+      if (byEmail) throw new ConflictException("Email already registered");
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const user = await this.prisma.appUser.create({
+      data: { name: dto.name, phone: dto.phone, passwordHash, email: dto.email, city: dto.city, address: dto.address },
+      select: { id: true, name: true, phone: true, email: true, city: true, createdAt: true },
+    });
+
+    const token = this.signToken(user.id);
+    return { user, token };
+  }
+
+  async login(dto: CustomerLoginDto) {
+    const user = await this.prisma.appUser.findUnique({ where: { phone: dto.phone } });
+    if (!user || !user.isActive) throw new UnauthorizedException("Invalid phone number or password");
+
+    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!valid) throw new UnauthorizedException("Invalid phone number or password");
+
+    await this.prisma.appUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
+    const token = this.signToken(user.id);
+    const { passwordHash: _, ...safeUser } = user;
+    return { user: safeUser, token };
+  }
+
+  private signToken(userId: string) {
+    return this.jwt.sign({ sub: userId, actorType: "customer" });
+  }
+
+  // ── Public medicine search & detail ───────────────────────────────────────
 
   async searchMedicines(q: string, page = 1, limit = 20) {
     const nameFilter = q.trim()
