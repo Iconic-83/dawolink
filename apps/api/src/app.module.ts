@@ -18,6 +18,7 @@ import { BillingModule } from "./billing/billing.module";
 import { AuditModule } from "./audit/audit.module";
 import { CustomerModule } from "./customer/customer.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
+import { OrderModule } from "./order/order.module";
 
 @Module({
   controllers: [HealthController],
@@ -40,6 +41,7 @@ import { MarketplaceModule } from "./marketplace/marketplace.module";
     AnalyticsModule,
     CustomerModule,
     MarketplaceModule,
+    OrderModule,
   ],
 })
 export class AppModule {}

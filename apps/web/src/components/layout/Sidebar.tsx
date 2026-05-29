@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -20,28 +22,39 @@ import {
   ShieldCheck,
   CreditCard,
   ClipboardList,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/expiry", label: "Expiry Alerts", icon: AlertTriangle },
-  { href: "/suppliers", label: "Suppliers", icon: Truck },
-  { href: "/customers", label: "Customers", icon: UserCircle },
-  { href: "/staff", label: "Staff", icon: Users },
-  { href: "/roles", label: "Roles", icon: ShieldCheck },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/billing", label: "Billing", icon: CreditCard },
-  { href: "/audit-logs", label: "Audit Logs", icon: ClipboardList },
-  { href: "/pharmacy", label: "Pharmacy", icon: Building2 },
+  { href: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
+  { href: "/orders",     label: "Online Orders",  icon: ShoppingBag, badge: "orders" },
+  { href: "/pos",        label: "Point of Sale",  icon: ShoppingCart },
+  { href: "/inventory",  label: "Inventory",      icon: Package },
+  { href: "/expiry",     label: "Expiry Alerts",  icon: AlertTriangle },
+  { href: "/suppliers",  label: "Suppliers",      icon: Truck },
+  { href: "/customers",  label: "Customers",      icon: UserCircle },
+  { href: "/staff",      label: "Staff",          icon: Users },
+  { href: "/roles",      label: "Roles",          icon: ShieldCheck },
+  { href: "/analytics",  label: "Analytics",      icon: BarChart3 },
+  { href: "/billing",    label: "Billing",        icon: CreditCard },
+  { href: "/audit-logs", label: "Audit Logs",     icon: ClipboardList },
+  { href: "/pharmacy",   label: "Pharmacy",       icon: Building2 },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const router = useRouter();
+
+  const { data: orderStats } = useQuery<any>({
+    queryKey: ["order-stats"],
+    queryFn: () => api.get("/v1/orders/stats").then(r => r.data),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+
+  const pendingOrders: number = orderStats?.pending ?? 0;
 
   const handleLogout = () => {
     logout();
@@ -76,8 +89,9 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
+          const count = badge === "orders" ? pendingOrders : 0;
           return (
             <Link
               key={href}
@@ -96,7 +110,12 @@ export function Sidebar() {
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
               <span className="flex-1">{label}</span>
-              {active && <ChevronRight className="h-3 w-3 opacity-70" />}
+              {count > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-400 text-white">
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
+              {active && count === 0 && <ChevronRight className="h-3 w-3 opacity-70" />}
             </Link>
           );
         })}
