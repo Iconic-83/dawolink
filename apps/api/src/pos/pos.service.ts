@@ -16,7 +16,12 @@ export class PosService {
     if (dto.offlineId) {
       const existing = await this.prisma.transaction.findUnique({
         where: { offlineId: dto.offlineId },
-        include: { items: { include: { medicine: true } }, customer: true },
+        include: {
+          items: { include: { medicine: true } },
+          customer: true,
+          branch: { include: { pharmacy: true } },
+          user: { select: { firstName: true, lastName: true } },
+        },
       });
       if (existing) return existing;
     }
@@ -68,7 +73,12 @@ export class PosService {
           offlineId: dto.offlineId,
           items: { create: enrichedItems },
         },
-        include: { items: { include: { medicine: true } }, customer: true },
+        include: {
+          items: { include: { medicine: true } },
+          customer: true,
+          branch: { include: { pharmacy: true } },
+          user: { select: { firstName: true, lastName: true } },
+        },
       });
 
       // Deduct stock for each item
