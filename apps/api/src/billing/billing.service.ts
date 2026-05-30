@@ -207,6 +207,88 @@ export class BillingService {
     return { invoice, pharmacy: sub.pharmacy };
   }
 
+  async adminListPharmaciesWithBilling(page = 1, limit = 30, search = "") {
+    const where = search ? { name: { contains: search, mode: "insensitive" as const } } : {};
+    const [pharmacies, total] = await Promise.all([
+      this.prisma.pharmacy.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, name: true, city: true, plan: true, isActive: true, planExpiry: true,
+          subscription: {
+            select: { id: true, status: true, billingCycle: true, amount: true, currentPeriodEnd: true,
+              invoices: { orderBy: { createdAt: "desc" }, take: 1, select: { paidAt: true, amount: true } }
+            }
+          },
+        },
+      }),
+      this.prisma.pharmacy.count({ where }),
+    ]);
+    return { pharmacies, total, page, limit };
+  }
+
+  async adminAssignPlan(pharmacyId: string, dto: {
+    plan: Plan;
+    billingCycle: "MONTHLY" | "ANNUAL";
+    amount: number;
+    paymentMethod?: string;
+    reference?: string;
+    notes?: string;
+  }) {
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + (dto.billingCycle === "ANNUAL" ? 12 : 1));
+
+    const sub = await this.prisma.subscription.upsert({
+      where: { pharmacyId },
+      create: {
+        pharmacyId,
+        plan: dto.plan,
+        billingCycle: dto.billingCycle,
+        amount: dto.amount,
+        status: "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+      update: {
+        plan: dto.plan,
+        billingCycle: dto.billingCycle,
+        amount: dto.amount,
+        status: "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    await this.prisma.pharmacy.update({
+      where: { id: pharmacyId },
+      data: { plan: dto.plan, planExpiry: periodEnd, isActive: true },
+    });
+
+    const noteParts = [
+      dto.paymentMethod ? PAYMENT_METHOD_LABELS[dto.paymentMethod] ?? dto.paymentMethod : null,
+      dto.reference ? `Ref: ${dto.reference}` : null,
+      dto.notes ?? null,
+    ].filter(Boolean);
+
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        subscriptionId: sub.id,
+        pharmacyId,
+        invoiceNo: `INV-${Date.now()}`,
+        amount: dto.amount,
+        status: "PAID",
+        dueDate: now,
+        paidAt: now,
+        notes: noteParts.join(" | ") || "Admin-assigned plan",
+      },
+    });
+
+    return { subscription: sub, invoice, message: `${dto.plan} plan activated for pharmacy.` };
+  }
+
   // Platform admin: overview of all subscriptions
   async getPlatformBillingOverview() {
     const [active, trialing, pastDue, cancelled] = await Promise.all([

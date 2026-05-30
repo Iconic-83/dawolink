@@ -95,4 +95,25 @@ export class BillingController {
   recordPayment(@Param("id") pharmacyId: string, @Body() body: { amount: number; notes?: string }) {
     return this.billing.recordPayment(pharmacyId, body.amount, body.notes);
   }
+
+  @Get("admin/pharmacies")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "List all pharmacies with subscription status (admin)" })
+  listPharmaciesWithBilling(
+    @Query("page") page = "1",
+    @Query("limit") limit = "30",
+    @Query("search") search = "",
+  ) {
+    return this.billing.adminListPharmaciesWithBilling(+page, +limit, search);
+  }
+
+  @Post("admin/pharmacies/:id/assign-plan")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "Assign plan to pharmacy after receiving payment (admin)" })
+  assignPlan(
+    @Param("id") pharmacyId: string,
+    @Body() body: { plan: any; billingCycle: "MONTHLY" | "ANNUAL"; amount: number; paymentMethod?: string; reference?: string; notes?: string },
+  ) {
+    return this.billing.adminAssignPlan(pharmacyId, body);
+  }
 }
