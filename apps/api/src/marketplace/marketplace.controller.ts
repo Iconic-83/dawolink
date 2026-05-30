@@ -128,6 +128,20 @@ export class MarketplaceController {
     return this.service.cancelOrder(req.user.id, id);
   }
 
+  // ── Promotions ────────────────────────────────────────────────────────────
+
+  @Post("promotions/validate")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Validate a promo code at checkout" })
+  validatePromo(
+    @Body("pharmacyId") pharmacyId: string,
+    @Body("code") code: string,
+    @Body("subtotal") subtotal: number,
+  ) {
+    return this.service.validatePromo(pharmacyId, code, subtotal);
+  }
+
   // ── Loyalty ───────────────────────────────────────────────────────────────
 
   @Get("loyalty")

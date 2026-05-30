@@ -10,6 +10,7 @@ import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
 import { LoyaltyService, POINTS_PER_DOLLAR, POINTS_PER_REDEEM, MIN_REDEEM } from "../loyalty/loyalty.service";
+import { PromotionsService } from "../promotions/promotions.service";
 
 @Injectable()
 export class MarketplaceService {
@@ -21,6 +22,7 @@ export class MarketplaceService {
     private mail: MailService,
     private config: ConfigService,
     private loyalty: LoyaltyService,
+    private promos: PromotionsService,
   ) {}
 
   // ── Customer Auth ─────────────────────────────────────────────────────────
@@ -273,14 +275,20 @@ export class MarketplaceService {
     const subtotal = dto.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
     const deliveryFee = dto.deliveryType === "DELIVERY" ? 2.0 : 0;
 
-    // Validate loyalty redemption before creating order (throws if invalid)
+    // Validate loyalty redemption
     let loyaltyDiscount = 0;
     if (dto.pointsToRedeem && dto.pointsToRedeem > 0) {
-      const discount = (dto.pointsToRedeem / POINTS_PER_REDEEM);
-      loyaltyDiscount = Math.min(discount, subtotal);
+      loyaltyDiscount = Math.min(dto.pointsToRedeem / POINTS_PER_REDEEM, subtotal);
     }
 
-    const total = Math.max(0, subtotal + deliveryFee - loyaltyDiscount);
+    // Validate promo code
+    let promoDiscount = 0;
+    if (dto.promoCode) {
+      const result = await this.promos.validate(dto.pharmacyId, dto.promoCode, subtotal);
+      promoDiscount = result.discount;
+    }
+
+    const total = Math.max(0, subtotal + deliveryFee - loyaltyDiscount - promoDiscount);
     const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}`;
 
     const order = await this.prisma.medicineOrder.create({
@@ -297,9 +305,11 @@ export class MarketplaceService {
         subtotal,
         deliveryFee,
         total,
-        notes: loyaltyDiscount > 0
-          ? `${dto.notes ? dto.notes + " | " : ""}Loyalty discount: -$${loyaltyDiscount.toFixed(2)}`
-          : dto.notes,
+        notes: [
+          dto.notes,
+          loyaltyDiscount > 0 ? `Loyalty discount: -$${loyaltyDiscount.toFixed(2)}` : null,
+          promoDiscount > 0 ? `Promo [${dto.promoCode}]: -$${promoDiscount.toFixed(2)}` : null,
+        ].filter(Boolean).join(" | ") || null,
         prescriptionUrl: dto.prescriptionUrl ?? null,
         prescriptionStatus: dto.prescriptionUrl ? "PENDING_REVIEW" : "NONE",
         items: {
@@ -321,6 +331,11 @@ export class MarketplaceService {
     // Redeem loyalty points now that order is created
     if (dto.pointsToRedeem && dto.pointsToRedeem > 0) {
       this.loyalty.redeem(appUserId, dto.pointsToRedeem, order.id).catch(() => {});
+    }
+
+    // Increment promo usage count
+    if (dto.promoCode) {
+      this.promos.applyUsage(dto.pharmacyId, dto.promoCode);
     }
 
     // Push confirmation to customer (fire-and-forget)
@@ -458,5 +473,11 @@ export class MarketplaceService {
 
   getMyLoyalty(appUserId: string) {
     return this.loyalty.getAccount(appUserId);
+  }
+
+  // ── Promotions ────────────────────────────────────────────────────────────
+
+  validatePromo(pharmacyId: string, code: string, subtotal: number) {
+    return this.promos.validate(pharmacyId, code, subtotal);
   }
 }

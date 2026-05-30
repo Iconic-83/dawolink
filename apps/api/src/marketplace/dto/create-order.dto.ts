@@ -59,4 +59,8 @@ export class CreateOrderDto {
   @Min(0)
   @Type(() => Number)
   pointsToRedeem?: number;
+
+  @IsOptional()
+  @IsString()
+  promoCode?: string;
 }

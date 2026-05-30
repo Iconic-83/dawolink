@@ -127,13 +127,33 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [notes, setNotes] = useState("");
   const [prescriptionUrl, setPrescriptionUrl] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoResult, setPromoResult] = useState<any>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
+  const [promoError, setPromoError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const price = pharmacy.price ?? 0;
   const deliveryFee = deliveryType === "DELIVERY" ? 2.0 : 0;
   const subtotal = price * qty;
-  const total = subtotal + deliveryFee;
+  const promoDiscount = promoResult?.discount ?? 0;
+  const total = Math.max(0, subtotal + deliveryFee - promoDiscount);
+
+  async function applyPromo() {
+    if (!promoCode.trim()) return;
+    setPromoChecking(true); setPromoError(""); setPromoResult(null);
+    try {
+      const { data } = await customerApi.post("/v1/marketplace/promotions/validate", {
+        pharmacyId: pharmacy.pharmacyId ?? pharmacy.id,
+        code: promoCode.trim(),
+        subtotal,
+      });
+      setPromoResult(data);
+    } catch (e: any) {
+      setPromoError(e.response?.data?.message ?? "Invalid promo code");
+    } finally { setPromoChecking(false); }
+  }
   const rxMandatory = medicine.requiresPrescription && deliveryType === "DELIVERY";
 
   async function submit() {
@@ -156,6 +176,7 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
         paymentMethod,
         notes: notes.trim() || undefined,
         prescriptionUrl: prescriptionUrl ?? undefined,
+        promoCode: promoResult ? promoCode.trim() : undefined,
       });
       onSuccess(data);
     } catch (err: any) {
@@ -304,6 +325,37 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
             />
           </div>
 
+          {/* Promo code */}
+          <div>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Promo Code</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={promoCode}
+                onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); setPromoError(""); }}
+                placeholder="Enter code…"
+                style={{ ...inp, flex: 1 }}
+                disabled={!!promoResult}
+              />
+              {promoResult ? (
+                <button onClick={() => { setPromoResult(null); setPromoCode(""); }}
+                  style={{ padding: "0 14px", borderRadius: 10, border: "none", background: "#FEE2E2", color: "#DC2626", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  Remove
+                </button>
+              ) : (
+                <button onClick={applyPromo} disabled={!promoCode.trim() || promoChecking}
+                  style={{ padding: "0 14px", borderRadius: 10, border: "none", background: "linear-gradient(90deg,#00C897,#009E78)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", opacity: !promoCode.trim() ? 0.5 : 1 }}>
+                  {promoChecking ? "…" : "Apply"}
+                </button>
+              )}
+            </div>
+            {promoResult && (
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "#059669", fontWeight: 600 }}>
+                ✓ {promoResult.description ?? promoResult.code} — -${promoResult.discount.toFixed(2)} off
+              </p>
+            )}
+            {promoError && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#DC2626" }}>{promoError}</p>}
+          </div>
+
           {/* Order total */}
           <div style={{ background: "#F7F5FF", borderRadius: 12, padding: "12px 14px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B6B9A", marginBottom: 4 }}>
@@ -312,6 +364,11 @@ function OrderModal({ medicine, pharmacy, onClose, onSuccess }: OrderModalProps)
             {deliveryFee > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B6B9A", marginBottom: 4 }}>
                 <span>Delivery fee</span><span>${deliveryFee.toFixed(2)}</span>
+              </div>
+            )}
+            {promoDiscount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#059669", marginBottom: 4, fontWeight: 600 }}>
+                <span>Promo ({promoCode})</span><span>-${promoDiscount.toFixed(2)}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: "#180D62", borderTop: "1px solid #E8E4FF", paddingTop: 8, marginTop: 4 }}>
