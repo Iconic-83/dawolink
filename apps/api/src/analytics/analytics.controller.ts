@@ -43,4 +43,21 @@ export class AnalyticsController {
   getOrderTrend(@Req() req: any, @Query("days") days?: string) {
     return this.analytics.getOrderTrend(req.user.pharmacyId, days ? +days : 30);
   }
+
+  @Get("suppliers")
+  getSupplierAnalytics(@Req() req: any) {
+    return this.analytics.getSupplierAnalytics(req.user.pharmacyId);
+  }
+
+  @Get("staff")
+  @ApiQuery({ name: "days", required: false, type: Number })
+  getStaffAnalytics(@Req() req: any, @Query("days") days?: string) {
+    return this.analytics.getStaffAnalytics(req.user.pharmacyId, days ? +days : 30);
+  }
+
+  @Get("regional")
+  @ApiQuery({ name: "days", required: false, type: Number })
+  getRegionalAnalytics(@Req() req: any, @Query("days") days?: string) {
+    return this.analytics.getRegionalAnalytics(req.user.pharmacyId, days ? +days : 30);
+  }
 }

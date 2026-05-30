@@ -264,4 +264,193 @@ export class AnalyticsService {
       ORDER BY date ASC
     `);
   }
+
+  // ── Supplier Analytics ────────────────────────────────────────────────────
+
+  async getSupplierAnalytics(pharmacyId: string) {
+    const [topSuppliers, paymentStatus, monthlySpend, avgDelivery] = await Promise.all([
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT s.name, s.id,
+               COUNT(po.id)::int AS total_orders,
+               COALESCE(SUM(po.total_amount), 0)::float AS total_value,
+               COUNT(CASE WHEN po.status = 'RECEIVED' THEN 1 END)::int AS completed,
+               COUNT(CASE WHEN po.status = 'CANCELLED' THEN 1 END)::int AS cancelled
+        FROM purchase_orders po
+        JOIN suppliers s ON s.id = po.supplier_id
+        WHERE po.pharmacy_id = ${pharmacyId}
+        GROUP BY s.id, s.name
+        ORDER BY total_value DESC
+        LIMIT 10
+      `),
+      this.prisma.purchaseOrder.groupBy({
+        by: ["paymentStatus"],
+        where: { pharmacyId },
+        _count: { id: true },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT TO_CHAR(DATE_TRUNC('month', ordered_at), 'Mon') AS month,
+               COALESCE(SUM(total_amount), 0)::float AS spend,
+               COUNT(*)::int AS orders
+        FROM purchase_orders
+        WHERE pharmacy_id = ${pharmacyId}
+          AND ordered_at >= NOW() - INTERVAL '6 months'
+        GROUP BY DATE_TRUNC('month', ordered_at)
+        ORDER BY DATE_TRUNC('month', ordered_at) ASC
+      `),
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT s.name,
+               ROUND(AVG(EXTRACT(EPOCH FROM (po.received_at - po.ordered_at)) / 86400))::int AS avg_days
+        FROM purchase_orders po
+        JOIN suppliers s ON s.id = po.supplier_id
+        WHERE po.pharmacy_id = ${pharmacyId}
+          AND po.status = 'RECEIVED'
+          AND po.received_at IS NOT NULL
+        GROUP BY s.name
+        ORDER BY avg_days ASC
+        LIMIT 8
+      `),
+    ]);
+
+    return {
+      topSuppliers: topSuppliers.map(s => ({
+        id: s.id, name: s.name,
+        totalOrders: s.total_orders, totalValue: s.total_value,
+        completed: s.completed, cancelled: s.cancelled,
+      })),
+      paymentSummary: {
+        unpaid: Number(paymentStatus.find(p => p.paymentStatus === "UNPAID")?._sum?.totalAmount ?? 0),
+        partial: Number(paymentStatus.find(p => p.paymentStatus === "PARTIAL")?._sum?.totalAmount ?? 0),
+        paid: Number(paymentStatus.find(p => p.paymentStatus === "PAID")?._sum?.totalAmount ?? 0),
+      },
+      monthlySpend: monthlySpend.map(m => ({ month: m.month, spend: m.spend, orders: m.orders })),
+      avgDelivery: avgDelivery.map(d => ({ name: d.name, avgDays: d.avg_days })),
+    };
+  }
+
+  // ── Employee / Staff Analytics ────────────────────────────────────────────
+
+  async getStaffAnalytics(pharmacyId: string, days = 30) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const branches = await this.prisma.branch.findMany({
+      where: { pharmacyId, isActive: true },
+      select: { id: true },
+    });
+    const branchIds = branches.map(b => b.id);
+    if (!branchIds.length) return { salesByStaff: [], activityByStaff: [] };
+
+    const [salesByStaff, activityByStaff] = await Promise.all([
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.first_name || ' ' || u.last_name AS name,
+               u.role,
+               COUNT(t.id)::int AS transactions,
+               COALESCE(SUM(t.total), 0)::float AS revenue,
+               COALESCE(AVG(t.total), 0)::float AS avg_sale
+        FROM transactions t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.branch_id IN (${Prisma.join(branchIds)})
+          AND t.created_at >= ${since}
+          AND t.status = 'COMPLETED'
+        GROUP BY u.id, u.first_name, u.last_name, u.role
+        ORDER BY revenue DESC
+        LIMIT 20
+      `),
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT u.first_name || ' ' || u.last_name AS name,
+               al.action,
+               COUNT(*)::int AS count
+        FROM audit_logs al
+        JOIN users u ON u.id = al.user_id
+        WHERE al.pharmacy_id = ${pharmacyId}
+          AND al.created_at >= ${since}
+          AND al.action IN ('STOCK_ADDED', 'STOCK_ADJUSTED', 'SALE')
+          AND al.user_id IS NOT NULL
+        GROUP BY u.first_name, u.last_name, al.action
+        ORDER BY count DESC
+        LIMIT 30
+      `),
+    ]);
+
+    return {
+      salesByStaff: salesByStaff.map(s => ({
+        name: s.name, role: s.role,
+        transactions: s.transactions, revenue: s.revenue, avgSale: s.avg_sale,
+      })),
+      activityByStaff: activityByStaff.map(a => ({
+        name: a.name, action: a.action, count: a.count,
+      })),
+    };
+  }
+
+  // ── Regional / Demand Analytics ───────────────────────────────────────────
+
+  async getRegionalAnalytics(pharmacyId: string, days = 30) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const branches = await this.prisma.branch.findMany({
+      where: { pharmacyId, isActive: true },
+      select: { id: true },
+    });
+    const branchIds = branches.map(b => b.id);
+    if (!branchIds.length) return { topMedicines: [], categoryTrend: [], paymentMethods: [] };
+
+    const [topMedicines, categoryTrend, paymentMethods] = await Promise.all([
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT m.name, m.category,
+               SUM(ti.quantity)::int AS total_qty,
+               COUNT(DISTINCT t.id)::int AS orders,
+               SUM(ti.total)::float AS revenue
+        FROM transaction_items ti
+        JOIN transactions t ON t.id = ti.transaction_id
+        JOIN medicines m ON m.id = ti.medicine_id
+        WHERE t.branch_id IN (${Prisma.join(branchIds)})
+          AND t.created_at >= ${since}
+          AND t.status = 'COMPLETED'
+        GROUP BY m.name, m.category
+        ORDER BY total_qty DESC
+        LIMIT 15
+      `),
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT m.category,
+               SUM(ti.quantity)::int AS total_qty,
+               SUM(ti.total)::float AS revenue
+        FROM transaction_items ti
+        JOIN transactions t ON t.id = ti.transaction_id
+        JOIN medicines m ON m.id = ti.medicine_id
+        WHERE t.branch_id IN (${Prisma.join(branchIds)})
+          AND t.created_at >= ${since}
+          AND t.status = 'COMPLETED'
+        GROUP BY m.category
+        ORDER BY revenue DESC
+        LIMIT 12
+      `),
+      this.prisma.$queryRaw<any[]>(Prisma.sql`
+        SELECT payment_method,
+               COUNT(*)::int AS count,
+               SUM(total)::float AS revenue
+        FROM transactions
+        WHERE branch_id IN (${Prisma.join(branchIds)})
+          AND created_at >= ${since}
+          AND status = 'COMPLETED'
+        GROUP BY payment_method
+        ORDER BY count DESC
+      `),
+    ]);
+
+    return {
+      topMedicines: topMedicines.map(m => ({
+        name: m.name, category: m.category,
+        totalQty: m.total_qty, orders: m.orders, revenue: m.revenue,
+      })),
+      categoryTrend: categoryTrend.map(c => ({
+        category: c.category, totalQty: c.total_qty, revenue: c.revenue,
+      })),
+      paymentMethods: paymentMethods.map(p => ({
+        method: p.payment_method, count: p.count, revenue: p.revenue,
+      })),
+    };
+  }
 }
