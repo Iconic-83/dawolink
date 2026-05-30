@@ -296,6 +296,9 @@ model Medicine {
   unit               String             @default("pcs")
   requiresPrescription Boolean          @default(false)
   description        String?
+  manufacturer       String?
+  brandName          String?
+  country            String?
   imageUrl           String?
   isActive           Boolean            @default(true)
   verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
