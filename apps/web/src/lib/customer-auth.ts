@@ -4,7 +4,7 @@ import axios from "axios";
 const TOKEN_KEY = "customer_token";
 
 export const customerApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4001/api",
 });
 
 customerApi.interceptors.request.use((config) => {
