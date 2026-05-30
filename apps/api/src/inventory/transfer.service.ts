@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { AuditService } from "../audit/audit.service";
+import { InboxService } from "../inbox/inbox.service";
 
 export interface CreateTransferDto {
   fromBranchId: string;
@@ -14,6 +15,7 @@ export class TransferService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private inbox: InboxService,
   ) {}
 
   async create(pharmacyId: string, userId: string, dto: CreateTransferDto) {
@@ -133,6 +135,14 @@ export class TransferService {
         items: dto.items.map(i => ({ medicineId: i.medicineId, quantity: i.quantity })),
       },
     });
+
+    this.inbox.push(
+      pharmacyId,
+      "STOCK_TRANSFER",
+      "Stock Transfer Completed",
+      `${dto.items.length} item${dto.items.length === 1 ? "" : "s"} transferred from ${from.name} to ${to.name}.`,
+      "/transfers",
+    );
 
     return this.getOne(pharmacyId, transfer.id);
   }

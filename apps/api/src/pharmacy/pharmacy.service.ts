@@ -11,6 +11,7 @@ import { CreateInviteDto } from "./dto/create-invite.dto";
 import { MailService } from "../common/mail/mail.service";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { PLAN_LIMITS } from "../common/guards/plan.guard";
+import { InboxService } from "../inbox/inbox.service";
 
 @Injectable()
 export class PharmacyService {
@@ -18,6 +19,7 @@ export class PharmacyService {
     private prisma: PrismaService,
     private audit: AuditService,
     private mail: MailService,
+    private inbox: InboxService,
   ) {}
 
   async create(dto: CreatePharmacyDto) {
@@ -227,6 +229,14 @@ export class PharmacyService {
       entityId: invite.id,
       newValue: { email: dto.email, role: dto.role, branchId: dto.branchId, expiresAt: expiresAt.toISOString() },
     });
+
+    this.inbox.push(
+      pharmacyId,
+      "STAFF_INVITE",
+      "Staff Invitation Sent",
+      `An invitation was sent to ${dto.email} for the ${dto.role.replace(/_/g, " ")} role.`,
+      "/staff",
+    );
 
     return { invite, inviteUrl, emailSent: this.mail.isEnabled };
   }

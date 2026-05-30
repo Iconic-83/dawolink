@@ -24,6 +24,7 @@ import { MarketplaceModule } from "./marketplace/marketplace.module";
 import { OrderModule } from "./order/order.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PushModule } from "./push/push.module";
+import { InboxModule } from "./inbox/inbox.module";
 
 @Module({
   controllers: [HealthController],
@@ -49,6 +50,7 @@ import { PushModule } from "./push/push.module";
     MailModule,
     NotificationsModule,
     PushModule,
+    InboxModule,
     MarketplaceModule,
     OrderModule,
   ],

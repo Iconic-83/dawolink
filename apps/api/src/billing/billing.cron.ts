@@ -3,6 +3,7 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../common/database/prisma.service";
 import { MailService } from "../common/mail/mail.service";
 import { ConfigService } from "@nestjs/config";
+import { InboxService } from "../inbox/inbox.service";
 
 @Injectable()
 export class BillingCron {
@@ -12,6 +13,7 @@ export class BillingCron {
     private prisma: PrismaService,
     private mail: MailService,
     private config: ConfigService,
+    private inbox: InboxService,
   ) {}
 
   // Runs every hour — expires TRIALING and ACTIVE subs past their period end
@@ -49,6 +51,13 @@ export class BillingCron {
           pharmacyName: sub.pharmacy.name,
           upgradeUrl,
         });
+        this.inbox.push(
+          sub.pharmacyId,
+          "SUBSCRIPTION_EXPIRED",
+          "Subscription Expired",
+          "Your subscription has expired. Renew now to restore access.",
+          "/billing",
+        );
       }
     }
   }
@@ -82,6 +91,13 @@ export class BillingCron {
         daysLeft,
         upgradeUrl,
       });
+      this.inbox.push(
+        sub.pharmacyId,
+        "SUBSCRIPTION_EXPIRING",
+        `Trial Expiring in ${daysLeft} Day${daysLeft === 1 ? "" : "s"}`,
+        "Upgrade your plan to keep full access after your trial ends.",
+        "/billing",
+      );
     }
   }
 }

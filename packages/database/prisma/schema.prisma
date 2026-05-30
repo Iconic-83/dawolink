@@ -179,7 +179,8 @@ model Pharmacy {
   customRoles    CustomRole[]
   subscription   Subscription?
   medicineOrders MedicineOrder[]
-  settings       PharmacySettings?
+  settings              PharmacySettings?
+  inboxNotifications    InboxNotification[]
 
   @@map("pharmacies")
 }
@@ -572,6 +573,37 @@ model TransferItem {
   transfer       StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
   @@map("transfer_items")
+}
+
+// ─────────────────────────────────────────────
+// INBOX NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model InboxNotification {
+  id         String    @id @default(cuid())
+  pharmacyId String
+  type       NotifType
+  title      String
+  body       String
+  link       String?
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  pharmacy   Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, isRead])
+  @@index([pharmacyId, createdAt(sort: Desc)])
+  @@map("inbox_notifications")
+}
+
+enum NotifType {
+  EXPIRY_ALERT
+  LOW_STOCK
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  STOCK_TRANSFER
+  STAFF_INVITE
+  SYSTEM
 }
 
 // ─────────────────────────────────────────────
