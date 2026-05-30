@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
 import { RbacService } from "../rbac/rbac.service";
+import { InboxService } from "../inbox/inbox.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { AdminCreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { SetupDto } from "./dto/setup.dto";
@@ -15,6 +16,7 @@ export class PlatformService {
     private jwt: JwtService,
     private config: ConfigService,
     private rbac: RbacService,
+    private inbox: InboxService,
   ) {}
 
   async setup(dto: SetupDto) {
@@ -206,11 +208,21 @@ export class PlatformService {
   }
 
   async rejectMedicine(id: string, notes: string) {
-    return this.prisma.medicine.update({
+    const medicine = await this.prisma.medicine.update({
       where: { id },
       data: { verificationStatus: "REJECTED", verificationNotes: notes },
-      include: { pharmacy: { select: { name: true } } },
+      include: { pharmacy: { select: { id: true, name: true } } },
     });
+
+    this.inbox.push(
+      medicine.pharmacy.id,
+      "SYSTEM",
+      `Medicine Rejected: ${medicine.name}`,
+      `Reason: ${notes}. Please correct and re-add the medicine.`,
+      "/inventory",
+    );
+
+    return medicine;
   }
 
   async getPendingCount() {

@@ -198,6 +198,7 @@ export default function InventoryPage() {
                     <th className="px-4 py-3">Form</th>
                     <th className="px-4 py-3">Barcode</th>
                     <th className="px-4 py-3">Rx</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 w-24" />
                   </tr>
                 </thead>
@@ -233,6 +234,19 @@ export default function InventoryPage() {
                         {med.requiresPrescription
                           ? <Badge variant="danger">Rx</Badge>
                           : <Badge variant="muted">OTC</Badge>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {med.verificationStatus === "VERIFIED" && (
+                          <Badge variant="success">Verified</Badge>
+                        )}
+                        {med.verificationStatus === "PENDING_VERIFICATION" && (
+                          <Badge variant="warning">Pending</Badge>
+                        )}
+                        {med.verificationStatus === "REJECTED" && (
+                          <span title={med.verificationNotes ?? ""}>
+                            <Badge variant="danger">Rejected</Badge>
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
