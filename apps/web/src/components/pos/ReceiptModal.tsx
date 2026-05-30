@@ -43,6 +43,10 @@ export function ReceiptModal({ receipt, onClose, onNewSale }: Props) {
     : undefined;
   const logoUrl  = resolveUrl(pharmacy?.logoUrl);
 
+  // Pharmacy initials fallback
+  const initials = pharmacy?.name
+    ?.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() ?? "PH";
+
   // ── Build receipt HTML for print window ───────────────────────────────────
   const buildPrintHtml = () => {
     const itemRows = (receipt.items ?? []).map((item: any) => `
@@ -51,6 +55,10 @@ export function ReceiptModal({ receipt, onClose, onNewSale }: Props) {
         <td style="text-align:center;padding:2px 4px">×${item.quantity}</td>
         <td style="text-align:right;padding:2px 0">${formatCurrency(Number(item.total))}</td>
       </tr>`).join("");
+
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" style="max-width:64px;max-height:64px;object-fit:contain;margin-bottom:6px;border-radius:8px" />`
+      : `<div style="width:64px;height:64px;border-radius:12px;background:linear-gradient(135deg,#180D62,#2D1B8E);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;color:#fff;font-size:22px;font-weight:900;font-family:sans-serif">${initials}</div>`;
 
     return `<!DOCTYPE html>
 <html>
@@ -70,16 +78,14 @@ export function ReceiptModal({ receipt, onClose, onNewSale }: Props) {
     .bold    { font-weight: bold; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
     .row     { display: flex; justify-content: space-between; padding: 1px 0; }
-    .logo    { max-width: 60px; max-height: 60px; object-fit: contain; margin-bottom: 6px; }
     table    { width: 100%; border-collapse: collapse; }
     .total-row { font-weight: bold; font-size: 13px; }
     .small   { font-size: 10px; color: #555; }
-    .green   { color: #000; }
   </style>
 </head>
 <body>
   <div class="center">
-    ${logoUrl ? `<img src="${logoUrl}" class="logo" />` : ""}
+    ${logoHtml}
     <div class="bold" style="font-size:15px">${pharmacy?.name ?? "DawoLink"}</div>
     ${pharmacy?.city ? `<div class="small">${pharmacy.city}</div>` : ""}
     ${pharmacy?.phone ? `<div class="small">Tel: ${pharmacy.phone}</div>` : ""}
@@ -167,19 +173,34 @@ export function ReceiptModal({ receipt, onClose, onNewSale }: Props) {
 
           {/* Pharmacy header */}
           <div className="text-center mb-3">
-            {logoUrl && (
+            {logoUrl ? (
               <img
                 src={logoUrl}
                 alt="Logo"
-                className="w-14 h-14 object-contain mx-auto mb-2 rounded-lg"
+                className="w-14 h-14 object-contain mx-auto mb-2 rounded-xl shadow-sm"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
+            ) : (
+              <div
+                className="w-14 h-14 rounded-xl mx-auto mb-2 flex items-center justify-center text-white font-black text-xl shadow-sm"
+                style={{ background: "linear-gradient(135deg, #180D62, #2D1B8E)" }}
+              >
+                {initials}
+              </div>
             )}
             <p className="font-bold text-sm text-gray-900">{pharmacy?.name ?? "DawoLink"}</p>
             {pharmacy?.city && <p className="text-gray-500 text-xs">{pharmacy.city}</p>}
             {pharmacy?.phone && <p className="text-gray-400 text-xs">Tel: {pharmacy.phone}</p>}
             {branch && branch.name !== pharmacy?.name && (
               <p className="text-gray-400 text-xs">Branch: {branch.name}</p>
+            )}
+            {!logoUrl && (
+              <a
+                href="/pharmacy"
+                className="inline-block mt-1 text-xs text-indigo-500 hover:text-indigo-700 underline font-sans"
+              >
+                Upload logo →
+              </a>
             )}
           </div>
 
