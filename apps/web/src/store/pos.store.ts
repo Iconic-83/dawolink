@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export interface CartItem {
   medicineId: string;
+  inventoryItemId?: string;
   name: string;
   barcode?: string;
   unitPrice: number;
@@ -17,6 +18,7 @@ interface PosState {
   paymentMethod: string;
   addItem: (item: Omit<CartItem, "quantity" | "discount">) => void;
   updateQty: (medicineId: string, qty: number) => void;
+  updatePrice: (medicineId: string, price: number) => void;
   updateDiscount: (medicineId: string, discount: number) => void;
   removeItem: (medicineId: string) => void;
   setDiscount: (discount: number) => void;
@@ -51,7 +53,20 @@ export const usePosStore = create<PosState>((set, get) => ({
     set((s) => ({
       items: qty <= 0
         ? s.items.filter((i) => i.medicineId !== medicineId)
-        : s.items.map((i) => (i.medicineId === medicineId ? { ...i, quantity: Math.min(qty, i.stock) } : i)),
+        : s.items.map((i) => {
+            if (i.medicineId !== medicineId) return i;
+            // If stock is unknown (0 from failed lookup), allow up to 999
+            const maxQty = i.stock > 0 ? i.stock : 999;
+            return { ...i, quantity: Math.min(qty, maxQty) };
+          }),
+    }));
+  },
+
+  updatePrice: (medicineId, price) => {
+    set((s) => ({
+      items: s.items.map((i) =>
+        i.medicineId === medicineId ? { ...i, unitPrice: Math.max(0, price) } : i,
+      ),
     }));
   },
 

@@ -36,16 +36,36 @@ export class InventoryService {
     return item;
   }
 
+  // Dedicated POS lookup — gets best inventory item for a medicine in a branch
+  async getPosStock(branchId: string, medicineId: string) {
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { branchId, medicineId, deletedAt: null, quantity: { gt: 0 } },
+      include: { medicine: true },
+      orderBy: { expiryDate: "asc" }, // earliest expiry first (FEFO)
+    });
+    // Fallback: include out-of-stock items so POS can still show the medicine
+    if (!item) {
+      const any = await this.prisma.inventoryItem.findFirst({
+        where: { branchId, medicineId, deletedAt: null },
+        include: { medicine: true },
+        orderBy: { createdAt: "desc" },
+      });
+      return any ?? null;
+    }
+    return item;
+  }
+
   async getBranchStock(
     branchId: string,
-    opts: { lowStockOnly?: boolean; search?: string; page?: number; limit?: number } = {},
+    opts: { lowStockOnly?: boolean; search?: string; medicineId?: string; page?: number; limit?: number } = {},
   ) {
-    const { lowStockOnly = false, search, page = 1, limit = 50 } = opts;
+    const { lowStockOnly = false, search, medicineId, page = 1, limit = 50 } = opts;
     const skip = (page - 1) * limit;
 
     const where: any = {
       branchId,
       deletedAt: null,
+      ...(medicineId && { medicineId }),
       ...(lowStockOnly && { quantity: { lte: this.prisma.inventoryItem.fields.reorderLevel } }),
       ...(search && { medicine: { name: { contains: search, mode: "insensitive" } } }),
     };
