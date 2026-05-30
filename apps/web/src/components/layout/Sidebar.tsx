@@ -25,6 +25,7 @@ import {
   ClipboardList,
   ShoppingBag,
   ArrowLeftRight,
+  Navigation,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ const navItems = [
   { href: "/pos",        label: "Point of Sale",  icon: ShoppingCart },
   { href: "/inventory",  label: "Inventory",      icon: Package },
   { href: "/transfers",  label: "Stock Transfers", icon: ArrowLeftRight },
+  { href: "/driver",     label: "My Deliveries",  icon: Navigation },
   { href: "/expiry",     label: "Expiry Alerts",  icon: AlertTriangle },
   { href: "/suppliers",  label: "Suppliers",      icon: Truck },
   { href: "/customers",  label: "Customers",      icon: UserCircle },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
@@ -317,13 +317,73 @@ function OrderDetailModal({ order: initialOrder, onClose, onStatusChange }: {
           <PrescriptionPanel
             order={order}
             onAction={() => {
-              // Refresh order data locally after prescription action
               api.get(`/v1/orders/${order.id}`).then(r => setOrder(r.data)).catch(() => {});
             }}
           />
         )}
+
+        {/* Assign Driver */}
+        {["CONFIRMED","PREPARING","READY_FOR_PICKUP"].includes(order.status) && order.deliveryType === "DELIVERY" && (
+          <AssignDriverPanel order={order} onAssigned={() => {
+            api.get(`/v1/orders/${order.id}`).then(r => setOrder(r.data)).catch(() => {});
+          }} />
+        )}
       </div>
     </Modal>
+  );
+}
+
+// ── Assign driver panel ────────────────────────────────────────────────────
+
+function AssignDriverPanel({ order, onAssigned }: { order: any; onAssigned: () => void }) {
+  const [driverId, setDriverId] = useState(order.driverId ?? "");
+  const qc = useQueryClient();
+
+  const { data: drivers = [] } = useQuery<any[]>({
+    queryKey: ["drivers"],
+    queryFn: () => api.get("/v1/driver/pharmacy/drivers").then(r => r.data),
+  });
+
+  const { mutate: assign, isPending } = useMutation({
+    mutationFn: (id: string) => api.patch(`/v1/driver/pharmacy/orders/${order.id}/assign`, { driverId: id }).then(r => r.data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Driver assigned"); onAssigned(); },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed to assign driver"),
+  });
+
+  if (!drivers.length) return null;
+
+  return (
+    <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
+      <p className="text-xs font-semibold text-blue-800 mb-3 flex items-center gap-1.5">
+        <span>🚚</span> Assign Delivery Driver
+      </p>
+      <div className="flex gap-2">
+        <select
+          value={driverId}
+          onChange={e => setDriverId(e.target.value)}
+          className="flex-1 px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">Select driver…</option>
+          {drivers.map((d: any) => (
+            <option key={d.id} value={d.id}>{d.firstName} {d.lastName}{d.phone ? ` · ${d.phone}` : ""}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => driverId && assign(driverId)}
+          disabled={!driverId || isPending}
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-1.5"
+          style={{ background: "linear-gradient(90deg,#4A8FE5,#2563EB)" }}
+        >
+          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          {order.driverId ? "Reassign" : "Assign"}
+        </button>
+      </div>
+      {order.driverId && order.driver && (
+        <p className="text-xs text-blue-600 mt-2">
+          Currently: <strong>{order.driver.firstName} {order.driver.lastName}</strong>
+        </p>
+      )}
+    </div>
   );
 }
 

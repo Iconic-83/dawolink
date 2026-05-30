@@ -77,6 +77,7 @@ export class OrderService {
       where: { id, pharmacyId },
       include: {
         items: true,
+        driver: { select: { id: true, firstName: true, lastName: true, phone: true } },
         appUser: { select: { id: true, name: true, phone: true, email: true, city: true, address: true } },
       },
     });

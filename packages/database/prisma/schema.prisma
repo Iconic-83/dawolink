@@ -253,6 +253,7 @@ model User {
   auditLogs      AuditLog[]
   transactions   Transaction[]
   sentInvites    StaffInvite[]  @relation("InvitedByUser")
+  driverOrders   MedicineOrder[] @relation("DriverOrders")
 
   @@map("users")
 }
@@ -456,7 +457,9 @@ model MedicineOrder {
   prescriptionStatus       PrescriptionStatus @default(NONE)
   prescriptionRejectReason String?
   notes                    String?
+  driverId        String?
   confirmedAt     DateTime?
+  pickedUpAt      DateTime?
   deliveredAt     DateTime?
   cancelledAt     DateTime?
   createdAt       DateTime            @default(now())
@@ -464,8 +467,10 @@ model MedicineOrder {
 
   appUser         AppUser             @relation(fields: [appUserId], references: [id])
   pharmacy        Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  driver          User?               @relation("DriverOrders", fields: [driverId], references: [id])
   items           MedicineOrderItem[]
 
+  @@index([driverId])
   @@map("medicine_orders")
 }
 
@@ -791,6 +796,7 @@ enum UserRole {
   PHARMACIST
   CASHIER
   INVENTORY_STAFF
+  DELIVERY_DRIVER
   AUDITOR
 }
 
