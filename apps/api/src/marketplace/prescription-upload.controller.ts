@@ -1,33 +1,29 @@
 import {
   Controller, Post, Delete, Body, UploadedFile, UseInterceptors,
-  UseGuards, Req, BadRequestException, PayloadTooLargeException,
+  UseGuards, BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiTags, ApiBearerAuth, ApiConsumes } from "@nestjs/swagger";
-import { diskStorage } from "multer";
-import { extname, join } from "path";
-import { existsSync, unlinkSync } from "fs";
-import { v4 as uuidv4 } from "uuid";
+import { memoryStorage } from "multer";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CustomerGuard } from "./guards/customer.guard";
+import { R2StorageService } from "../common/storage/r2-storage.service";
 
 const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-const UPLOAD_DIR = join(process.cwd(), "uploads", "prescriptions");
 
 @ApiTags("Prescriptions")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, CustomerGuard)
 @Controller("v1/marketplace/prescriptions")
 export class PrescriptionUploadController {
+  constructor(private storage: R2StorageService) {}
+
   @Post("upload")
   @ApiConsumes("multipart/form-data")
   @UseInterceptors(
     FileInterceptor("file", {
-      storage: diskStorage({
-        destination: UPLOAD_DIR,
-        filename: (_req, _file, cb) => cb(null, `${uuidv4()}${extname(_file.originalname).toLowerCase()}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_BYTES },
       fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIMES.includes(file.mimetype)) cb(null, true);
@@ -35,19 +31,16 @@ export class PrescriptionUploadController {
       },
     }),
   )
-  upload(@UploadedFile() file: Express.Multer.File) {
+  async upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException("No file received");
-    const url = `/uploads/prescriptions/${file.filename}`;
-    return { url, filename: file.filename, size: file.size, mimetype: file.mimetype };
+    const url = await this.storage.upload("prescriptions", file.originalname, file.buffer, file.mimetype);
+    return { url, size: file.size, mimetype: file.mimetype };
   }
 
   @Delete("delete")
-  deleteFile(@Body("filename") filename: string) {
-    if (!filename || filename.includes("..") || filename.includes("/")) {
-      throw new BadRequestException("Invalid filename");
-    }
-    const filepath = join(UPLOAD_DIR, filename);
-    if (existsSync(filepath)) unlinkSync(filepath);
+  async deleteFile(@Body("url") url: string) {
+    if (!url) throw new BadRequestException("URL is required");
+    await this.storage.delete(url);
     return { success: true };
   }
 }

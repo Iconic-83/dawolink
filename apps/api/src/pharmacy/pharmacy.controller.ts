@@ -5,11 +5,10 @@ import {
 import { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiTags, ApiBearerAuth, ApiConsumes } from "@nestjs/swagger";
-import { diskStorage } from "multer";
-import { extname, join } from "path";
-import { v4 as uuidv4 } from "uuid";
+import { memoryStorage } from "multer";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PharmacyService } from "./pharmacy.service";
+import { R2StorageService } from "../common/storage/r2-storage.service";
 import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
@@ -18,14 +17,15 @@ import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { CreateInviteDto } from "./dto/create-invite.dto";
 import { UpdatePharmacySettingsDto } from "./dto/update-pharmacy-settings.dto";
 
-const LOGO_DIR = join(process.cwd(), "uploads", "logos");
-
 @ApiTags("Pharmacy")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("v1/pharmacy")
 export class PharmacyController {
-  constructor(private pharmacy: PharmacyService) {}
+  constructor(
+    private pharmacy: PharmacyService,
+    private storage: R2StorageService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreatePharmacyDto) {
@@ -46,10 +46,7 @@ export class PharmacyController {
   @ApiConsumes("multipart/form-data")
   @UseInterceptors(
     FileInterceptor("logo", {
-      storage: diskStorage({
-        destination: LOGO_DIR,
-        filename: (_req, _file, cb) => cb(null, `${uuidv4()}${extname(_file.originalname).toLowerCase()}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
         if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
@@ -57,9 +54,9 @@ export class PharmacyController {
       },
     }),
   )
-  uploadLogo(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
+  async uploadLogo(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException("No file received");
-    const logoUrl = `/uploads/logos/${file.filename}`;
+    const logoUrl = await this.storage.upload("logos", file.originalname, file.buffer, file.mimetype);
     return this.pharmacy.updateLogo(req.user.pharmacyId, logoUrl);
   }
 

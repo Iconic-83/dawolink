@@ -268,7 +268,7 @@ export default function OrderDetailPage() {
               <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: order.prescriptionStatus === "VERIFIED" ? "#065F46" : order.prescriptionStatus === "REJECTED" ? "#991B1B" : "#92400E" }}>
                 Prescription {order.prescriptionStatus === "VERIFIED" ? "Verified" : order.prescriptionStatus === "REJECTED" ? "Rejected" : "Pending Review"}
               </p>
-              <a href={`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000"}${order.prescriptionUrl}`}
+              <a href={`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4001"}${order.prescriptionUrl}`}
                 target="_blank" rel="noreferrer"
                 style={{ fontSize: 12, color: "#6B6B9A", textDecoration: "underline" }}>
                 View uploaded prescription

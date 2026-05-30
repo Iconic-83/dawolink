@@ -15,7 +15,14 @@ import {
   Download, Upload, RotateCcw, ShieldCheck, ShieldOff,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4001";
+
+// Handles both R2 absolute URLs (https://...) and local disk relative URLs (/uploads/...)
+function resolveUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_BASE}${url}`;
+}
 
 const PLAN_COLOR: Record<string, string> = {
   STARTER: "bg-blue-100 text-blue-700",
@@ -185,7 +192,7 @@ function ProfileTab({ pharmacy }: { pharmacy: any }) {
     } finally { setUploading(false); }
   }
 
-  const logoSrc = pharmacy.logoUrl ? `${API_BASE}${pharmacy.logoUrl}` : null;
+  const logoSrc = resolveUrl(pharmacy.logoUrl);
   const initials = pharmacy.name?.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() ?? "PH";
 
   return (
@@ -942,7 +949,7 @@ export default function PharmacyPage() {
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{ background: pharmacy.logoUrl ? undefined : "linear-gradient(135deg, #180D62, #2D1B8E)" }}>
           {pharmacy.logoUrl
-            ? <img src={`${API_BASE}${pharmacy.logoUrl}`} alt="Logo" className="w-full h-full object-cover" />
+            ? <img src={resolveUrl(pharmacy.logoUrl)!} alt="Logo" className="w-full h-full object-cover" />
             : <span className="text-white text-lg font-bold">
                 {pharmacy.name?.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()}
               </span>}

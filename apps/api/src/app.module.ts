@@ -31,6 +31,7 @@ import { LoyaltyModule } from "./loyalty/loyalty.module";
 import { PromotionsModule } from "./promotions/promotions.module";
 import { SupplierPortalModule } from "./supplier-portal/supplier-portal.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { StorageModule } from "./common/storage/storage.module";
 
 @Module({
   controllers: [HealthController],
@@ -40,6 +41,7 @@ import { PaymentsModule } from "./payments/payments.module";
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     DatabaseModule,
+    StorageModule,
     AuditModule,
     AuthModule,
     RbacModule,

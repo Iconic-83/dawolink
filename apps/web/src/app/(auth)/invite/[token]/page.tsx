@@ -15,7 +15,7 @@ const ROLE_LABEL: Record<string, string> = {
   AUDITOR:         "Auditor",
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4001";
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();

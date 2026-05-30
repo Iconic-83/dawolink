@@ -14,7 +14,7 @@ import {
   RefreshCw, User, AlertTriangle, FileText,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4001";
 
 const RX_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   PENDING_REVIEW: { label: "Rx — Awaiting Review", color: "#92400E", bg: "#FEF3C7" },
