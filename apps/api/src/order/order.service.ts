@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { PushService } from "../push/push.service";
+import { LoyaltyService } from "../loyalty/loyalty.service";
 
 const NEXT_STATUS: Record<string, string[]> = {
   PENDING:          ["CONFIRMED", "CANCELLED"],
@@ -27,6 +28,7 @@ export class OrderService {
   constructor(
     private prisma: PrismaService,
     private push: PushService,
+    private loyalty: LoyaltyService,
   ) {}
 
   async getOrders(pharmacyId: string, status?: string) {
@@ -113,6 +115,11 @@ export class OrderService {
         appUser: { select: { id: true, name: true, phone: true, city: true } },
       },
     });
+
+    // Award loyalty points on delivery
+    if (status === "DELIVERED" && order.appUserId) {
+      this.loyalty.earn(order.appUserId, Number(order.total), id);
+    }
 
     // Push notification to customer (fire-and-forget)
     const msgFn = PUSH_MESSAGES[status];

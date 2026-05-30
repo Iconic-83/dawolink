@@ -61,9 +61,18 @@ export default function OrdersPage() {
             {orders.length === 0 ? "No orders yet" : `${orders.length} order${orders.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <Link href="/shop" style={{ color: "#00C897", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
-          ← Browse
-        </Link>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <Link href="/shop/loyalty" style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: "#F4F2FF", borderRadius: 10, padding: "6px 12px",
+            fontSize: 13, fontWeight: 600, color: "#2D1B8E", textDecoration: "none",
+          }}>
+            🏆 Points
+          </Link>
+          <Link href="/shop" style={{ color: "#00C897", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+            ← Browse
+          </Link>
+        </div>
       </div>
 
       {orders.length === 0 ? (

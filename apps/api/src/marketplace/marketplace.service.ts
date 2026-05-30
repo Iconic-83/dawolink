@@ -9,6 +9,7 @@ import { ConfigService } from "@nestjs/config";
 import { CustomerRegisterDto } from "./dto/customer-register.dto";
 import { CustomerLoginDto } from "./dto/customer-login.dto";
 import { CreateOrderDto } from "./dto/create-order.dto";
+import { LoyaltyService, POINTS_PER_DOLLAR, POINTS_PER_REDEEM, MIN_REDEEM } from "../loyalty/loyalty.service";
 
 @Injectable()
 export class MarketplaceService {
@@ -19,6 +20,7 @@ export class MarketplaceService {
     private push: PushService,
     private mail: MailService,
     private config: ConfigService,
+    private loyalty: LoyaltyService,
   ) {}
 
   // ── Customer Auth ─────────────────────────────────────────────────────────
@@ -270,7 +272,15 @@ export class MarketplaceService {
 
     const subtotal = dto.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
     const deliveryFee = dto.deliveryType === "DELIVERY" ? 2.0 : 0;
-    const total = subtotal + deliveryFee;
+
+    // Validate loyalty redemption before creating order (throws if invalid)
+    let loyaltyDiscount = 0;
+    if (dto.pointsToRedeem && dto.pointsToRedeem > 0) {
+      const discount = (dto.pointsToRedeem / POINTS_PER_REDEEM);
+      loyaltyDiscount = Math.min(discount, subtotal);
+    }
+
+    const total = Math.max(0, subtotal + deliveryFee - loyaltyDiscount);
     const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}`;
 
     const order = await this.prisma.medicineOrder.create({
@@ -287,7 +297,9 @@ export class MarketplaceService {
         subtotal,
         deliveryFee,
         total,
-        notes: dto.notes,
+        notes: loyaltyDiscount > 0
+          ? `${dto.notes ? dto.notes + " | " : ""}Loyalty discount: -$${loyaltyDiscount.toFixed(2)}`
+          : dto.notes,
         prescriptionUrl: dto.prescriptionUrl ?? null,
         prescriptionStatus: dto.prescriptionUrl ? "PENDING_REVIEW" : "NONE",
         items: {
@@ -305,6 +317,11 @@ export class MarketplaceService {
         appUser: { select: { name: true } },
       },
     });
+
+    // Redeem loyalty points now that order is created
+    if (dto.pointsToRedeem && dto.pointsToRedeem > 0) {
+      this.loyalty.redeem(appUserId, dto.pointsToRedeem, order.id).catch(() => {});
+    }
 
     // Push confirmation to customer (fire-and-forget)
     this.push.sendToUser(appUserId, {
@@ -435,5 +452,11 @@ export class MarketplaceService {
 
   async getMyReview(appUserId: string, orderId: string) {
     return this.prisma.pharmacyReview.findUnique({ where: { orderId } });
+  }
+
+  // ── Loyalty ───────────────────────────────────────────────────────────────
+
+  getMyLoyalty(appUserId: string) {
+    return this.loyalty.getAccount(appUserId);
   }
 }

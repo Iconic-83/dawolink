@@ -27,6 +27,7 @@ import { PushModule } from "./push/push.module";
 import { InboxModule } from "./inbox/inbox.module";
 import { ChatModule } from "./chat/chat.module";
 import { DriverModule } from "./driver/driver.module";
+import { LoyaltyModule } from "./loyalty/loyalty.module";
 
 @Module({
   controllers: [HealthController],
@@ -55,6 +56,7 @@ import { DriverModule } from "./driver/driver.module";
     InboxModule,
     ChatModule,
     DriverModule,
+    LoyaltyModule,
     MarketplaceModule,
     OrderModule,
   ],

@@ -128,6 +128,16 @@ export class MarketplaceController {
     return this.service.cancelOrder(req.user.id, id);
   }
 
+  // ── Loyalty ───────────────────────────────────────────────────────────────
+
+  @Get("loyalty")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get my loyalty account and transaction history" })
+  getMyLoyalty(@Req() req: any) {
+    return this.service.getMyLoyalty(req.user.id);
+  }
+
   // ── Reviews ───────────────────────────────────────────────────────────────
 
   @Post("reviews")

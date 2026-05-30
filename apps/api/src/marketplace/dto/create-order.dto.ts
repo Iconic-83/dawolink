@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
 import {
-  IsArray, IsEnum, IsNumber, IsOptional, IsString,
+  IsArray, IsEnum, IsNumber, IsOptional, IsString, IsInt,
   Min, ValidateNested,
 } from "class-validator";
 
@@ -53,4 +53,10 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   prescriptionUrl?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  pointsToRedeem?: number;
 }

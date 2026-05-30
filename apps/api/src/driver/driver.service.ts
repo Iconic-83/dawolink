@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
 import { PushService } from "../push/push.service";
+import { LoyaltyService } from "../loyalty/loyalty.service";
 
 const DRIVER_NEXT: Record<string, string[]> = {
   OUT_FOR_DELIVERY: ["DELIVERED"],
@@ -16,6 +17,7 @@ export class DriverService {
   constructor(
     private prisma: PrismaService,
     private push: PushService,
+    private loyalty: LoyaltyService,
   ) {}
 
   async getMyDeliveries(driverId: string) {
@@ -85,6 +87,11 @@ export class DriverService {
         pharmacy: { select: { id: true, name: true } },
       },
     });
+
+    // Award loyalty points on delivery
+    if (status === "DELIVERED" && order.appUserId) {
+      this.loyalty.earn(order.appUserId, Number(order.total), orderId);
+    }
 
     const msgFn = DRIVER_PUSH[status];
     if (msgFn && order.appUserId) {
