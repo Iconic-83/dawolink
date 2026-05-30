@@ -12,7 +12,7 @@ import {
   Building2, MapPin, Phone, Mail, FileText, Globe,
   Camera, Edit2, Plus, Trash2, Loader2, Save,
   CheckCircle2, AlertTriangle, Star, ChevronRight, Settings2,
-  Download, Upload, RotateCcw,
+  Download, Upload, RotateCcw, ShieldCheck, ShieldOff,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
@@ -28,7 +28,7 @@ const SOMALI_CITIES = [
   "Garowe","Beledweyne","Marka","Jilib","Gaalkacyo",
 ];
 
-type Tab = "profile" | "branches" | "settings" | "danger";
+type Tab = "profile" | "branches" | "settings" | "security" | "danger";
 
 // ── Reusable field ─────────────────────────────────────────────────────────
 
@@ -603,6 +603,142 @@ function SettingsTab() {
   );
 }
 
+// ── Security tab ──────────────────────────────────────────────────────────
+
+function SecurityTab() {
+  const qc = useQueryClient();
+  const [step, setStep] = useState<"idle" | "confirm">("idle");
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
+
+  const { data: status, isLoading } = useQuery<{ twoFAEnabled: boolean; email: string }>({
+    queryKey: ["2fa-status"],
+    queryFn: () => api.get("/v1/auth/2fa/status").then(r => r.data),
+  });
+
+  const { mutate: enable, isPending: enabling } = useMutation({
+    mutationFn: () => api.post("/v1/auth/2fa/enable").then(r => r.data),
+    onSuccess: (data) => {
+      setStep("confirm");
+      if (data.emailSent) toast.info("Verification code sent to your email.");
+      else toast.warning("SMTP not configured — check server logs for the OTP code.");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
+
+  const { mutate: confirm, isPending: confirming } = useMutation({
+    mutationFn: () => api.post("/v1/auth/2fa/confirm", { otp }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["2fa-status"] });
+      setStep("idle"); setOtp(""); setOtpError("");
+      toast.success("Two-factor authentication enabled.");
+    },
+    onError: (e: any) => setOtpError(e.response?.data?.message ?? "Invalid code"),
+  });
+
+  const { mutate: disable, isPending: disabling } = useMutation({
+    mutationFn: () => api.delete("/v1/auth/2fa/disable").then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["2fa-status"] });
+      toast.success("Two-factor authentication disabled.");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center h-32 text-gray-400"><Loader2 className="h-5 w-5 animate-spin mr-2" />Loading…</div>;
+
+  const enabled = status?.twoFAEnabled ?? false;
+
+  return (
+    <div className="space-y-5 max-w-xl">
+      <div className="bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${enabled ? "bg-emerald-50" : "bg-gray-100"}`}>
+              {enabled
+                ? <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                : <ShieldOff className="h-5 w-5 text-gray-400" />}
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Two-Factor Authentication</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {enabled
+                  ? "Your account is protected with email OTP on every sign-in."
+                  : "Add an extra layer of security — require a code from your email when signing in."}
+              </p>
+              {status?.email && (
+                <p className="text-xs text-gray-400 mt-1">Codes sent to: <span className="font-medium text-gray-600">{status.email}</span></p>
+              )}
+            </div>
+          </div>
+          <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${enabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+            {enabled ? "Enabled" : "Disabled"}
+          </span>
+        </div>
+
+        {/* Enable flow */}
+        {!enabled && step === "idle" && (
+          <button
+            onClick={() => enable()}
+            disabled={enabling}
+            className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
+            style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}
+          >
+            {enabling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Enable 2FA
+          </button>
+        )}
+
+        {/* OTP confirmation step */}
+        {!enabled && step === "confirm" && (
+          <div className="mt-5 space-y-3">
+            <p className="text-sm text-gray-600">Enter the 6-digit code sent to your email to activate 2FA:</p>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otp}
+                onChange={e => { setOtp(e.target.value.replace(/\D/g, "")); setOtpError(""); }}
+                placeholder="000000"
+                className="w-36 px-3 py-2.5 rounded-xl border border-gray-200 text-center text-xl font-bold font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                autoFocus
+              />
+              <button
+                onClick={() => confirm()}
+                disabled={confirming || otp.length !== 6}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-2"
+                style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}
+              >
+                {confirming && <Loader2 className="h-4 w-4 animate-spin" />} Confirm
+              </button>
+              <button
+                onClick={() => { setStep("idle"); setOtp(""); setOtpError(""); }}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+            {otpError && <p className="text-xs text-red-500">{otpError}</p>}
+          </div>
+        )}
+
+        {/* Disable */}
+        {enabled && (
+          <button
+            onClick={() => { if (window.confirm("Disable two-factor authentication?")) disable(); }}
+            disabled={disabling}
+            className="mt-5 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition disabled:opacity-60"
+          >
+            {disabling ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
+            Disable 2FA
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Danger zone tab ────────────────────────────────────────────────────────
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
@@ -782,9 +918,10 @@ export default function PharmacyPage() {
   const isOwner = user?.role === "PHARMACY_OWNER";
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "profile",   label: "Profile",   icon: <Building2 className="h-4 w-4" /> },
-    { key: "branches",  label: "Branches",  icon: <MapPin className="h-4 w-4" /> },
-    { key: "settings",  label: "Settings",  icon: <Settings2 className="h-4 w-4" /> },
+    { key: "profile",   label: "Profile",    icon: <Building2 className="h-4 w-4" /> },
+    { key: "branches",  label: "Branches",   icon: <MapPin className="h-4 w-4" /> },
+    { key: "settings",  label: "Settings",   icon: <Settings2 className="h-4 w-4" /> },
+    { key: "security",  label: "Security",   icon: <ShieldCheck className="h-4 w-4" /> },
     { key: "danger",    label: "Danger Zone", icon: <AlertTriangle className="h-4 w-4" /> },
   ];
 
@@ -845,6 +982,7 @@ export default function PharmacyPage() {
       {tab === "profile"   && <ProfileTab  pharmacy={pharmacy} />}
       {tab === "branches"  && <BranchesTab pharmacy={pharmacy} />}
       {tab === "settings"  && <SettingsTab />}
+      {tab === "security"  && <SecurityTab />}
       {tab === "danger"    && <DangerTab   pharmacy={pharmacy} />}
     </div>
   );

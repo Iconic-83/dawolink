@@ -17,6 +17,13 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
+  // 2FA step
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [tempToken, setTempToken] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: typeof errors = {};
@@ -27,6 +34,12 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await api.post("/v1/auth/login", { email: email.trim(), password });
+      if (res.data.requires2FA) {
+        setTempToken(res.data.tempToken);
+        setRequires2FA(true);
+        toast.info("A verification code was sent to your email.");
+        return;
+      }
       setAuth(res.data.user, res.data.token);
       toast.success(`Welcome back, ${res.data.user.firstName}!`);
       router.push("/dashboard");
@@ -37,12 +50,90 @@ export default function LoginPage() {
     }
   };
 
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 6) { setOtpError("Enter the 6-digit code"); return; }
+    setOtpError("");
+    setVerifying(true);
+    try {
+      const res = await api.post("/v1/auth/verify-otp", { tempToken, otp });
+      setAuth(res.data.user, res.data.token);
+      toast.success(`Welcome back, ${res.data.user.firstName}!`);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setOtpError(err.response?.data?.message ?? "Invalid or expired code.");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const inputStyle = (hasError?: string): React.CSSProperties => ({
     width: "100%", padding: "12px 14px", borderRadius: 10,
     border: `1.5px solid ${hasError ? "#EF4444" : "#E8E4FF"}`,
     background: "white", fontSize: 14, color: "#180D62",
     outline: "none", boxSizing: "border-box", transition: "border-color 0.15s",
   });
+
+  // ── 2FA OTP screen ────────────────────────────────────────────────────────
+  if (requires2FA) {
+    return (
+      <div>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,#180D62,#2D1B8E)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00C897" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: "#180D62", margin: "0 0 8px" }}>Check your email</h1>
+          <p style={{ fontSize: 14, color: "#6B6B9A", margin: 0 }}>
+            We sent a 6-digit code to <strong style={{ color: "#180D62" }}>{email}</strong>. Enter it below to sign in.
+          </p>
+        </div>
+
+        <form onSubmit={handleVerifyOtp} noValidate style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 7 }}>Verification Code</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={e => { setOtp(e.target.value.replace(/\D/g, "")); setOtpError(""); }}
+              placeholder="000000"
+              autoFocus
+              style={{
+                width: "100%", padding: "14px", borderRadius: 10, textAlign: "center",
+                fontSize: 28, fontWeight: 800, letterSpacing: 12, fontFamily: "monospace",
+                border: `1.5px solid ${otpError ? "#EF4444" : "#E8E4FF"}`,
+                outline: "none", boxSizing: "border-box" as const, color: "#180D62",
+              }}
+            />
+            {otpError && <p style={{ fontSize: 12, color: "#EF4444", margin: "5px 0 0" }}>{otpError}</p>}
+          </div>
+
+          <button
+            type="submit"
+            disabled={verifying || otp.length !== 6}
+            style={{
+              width: "100%", padding: "13px", borderRadius: 10, border: "none",
+              background: "linear-gradient(90deg,#00C897,#009E78)",
+              color: "white", fontSize: 15, fontWeight: 700,
+              cursor: verifying ? "not-allowed" : "pointer", opacity: otp.length !== 6 ? 0.6 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            {verifying ? "Verifying…" : "Verify & Sign In"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setRequires2FA(false); setOtp(""); setOtpError(""); }}
+            style={{ background: "none", border: "none", color: "#6B6B9A", fontSize: 13, cursor: "pointer", textAlign: "center" }}
+          >
+            ← Back to sign in
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div>

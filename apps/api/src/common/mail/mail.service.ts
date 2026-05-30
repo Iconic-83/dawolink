@@ -277,4 +277,39 @@ export class MailService implements OnModuleInit {
       `,
     }).catch(err => this.log.error(`Failed to send order notification to ${opts.to}: ${err.message}`));
   }
+
+  async sendOtp(opts: { to: string; name: string; otp: string; expiresInMinutes: number }) {
+    if (!this.isEnabled || !this.transporter) return;
+    await this.transporter.sendMail({
+      from: this.from,
+      to: opts.to,
+      subject: `${opts.otp} — Your DawoLink verification code`,
+      html: `
+        <div style="font-family:'Segoe UI',sans-serif;max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #EDE9FF">
+          <div style="background:linear-gradient(135deg,#180D62,#2D1B8E);padding:28px 32px;text-align:center">
+            <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800">Dawo<span style="color:#00C897">Link</span></h1>
+            <p style="color:#C4B5FD;margin:6px 0 0;font-size:13px">Verification Code</p>
+          </div>
+          <div style="padding:32px">
+            <p style="color:#180D62;font-size:15px;margin:0 0 8px">Hi ${opts.name},</p>
+            <p style="color:#6B6B9A;font-size:14px;margin:0 0 28px">
+              Use the code below to complete your sign-in. It expires in <strong>${opts.expiresInMinutes} minutes</strong>.
+            </p>
+            <div style="background:#F4F2FF;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+              <p style="font-size:40px;font-weight:900;letter-spacing:12px;color:#180D62;margin:0;font-family:monospace">
+                ${opts.otp}
+              </p>
+            </div>
+            <p style="color:#9B9BC0;font-size:12px;text-align:center;margin:0">
+              If you did not request this code, you can safely ignore this email.
+            </p>
+            <hr style="border:none;border-top:1px solid #EDE9FF;margin:24px 0"/>
+            <p style="color:#C4B5FD;font-size:12px;text-align:center">
+              DawoLink · Pharmacy Management Platform · Somalia
+            </p>
+          </div>
+        </div>
+      `,
+    }).catch(err => this.log.error(`Failed to send OTP to ${opts.to}: ${err.message}`));
+  }
 }

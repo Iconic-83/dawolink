@@ -235,9 +235,12 @@ model User {
   firstName    String
   lastName     String
   role           UserRole
-  customRoleId   String?           // optional custom role overrides base permissions
+  customRoleId   String?
   isActive       Boolean   @default(true)
   lastLoginAt    DateTime?
+  twoFAEnabled   Boolean   @default(false)
+  otpCode        String?
+  otpExpiresAt   DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

@@ -4,10 +4,12 @@ import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../common/database/prisma.service";
 import { AuditService } from "../audit/audit.service";
+import { MailService } from "../common/mail/mail.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { SignupDto } from "./dto/signup.dto";
 import { AcceptInviteDto } from "./dto/accept-invite.dto";
+import { VerifyOtpDto } from "./dto/verify-otp.dto";
 
 @Injectable()
 export class AuthService {
@@ -16,6 +18,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private audit: AuditService,
+    private mail: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -60,6 +63,31 @@ export class AuthService {
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException("Invalid credentials");
+
+    // 2FA: generate OTP, store it, return temp token
+    if (user.twoFAEnabled) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode: otp, otpExpiresAt },
+      });
+
+      this.mail.sendOtp({
+        to: user.email,
+        name: user.firstName,
+        otp,
+        expiresInMinutes: 10,
+      });
+
+      const tempToken = this.jwt.sign(
+        { sub: user.id, type: "2fa_pending" },
+        { expiresIn: "10m" },
+      );
+
+      return { requires2FA: true, tempToken };
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -205,6 +233,105 @@ export class AuthService {
 
     const token = this.signToken(user.id, user.pharmacyId, user.role);
     return { user, token };
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    let payload: any;
+    try {
+      payload = this.jwt.verify(dto.tempToken);
+    } catch {
+      throw new UnauthorizedException("Session expired. Please log in again.");
+    }
+
+    if (payload.type !== "2fa_pending") throw new UnauthorizedException("Invalid token");
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { pharmacy: { select: { id: true, name: true, plan: true } } },
+    });
+
+    if (!user || !user.isActive) throw new UnauthorizedException("Account not found");
+    if (!user.otpCode || !user.otpExpiresAt) throw new UnauthorizedException("No OTP pending. Please log in again.");
+    if (new Date() > user.otpExpiresAt) throw new UnauthorizedException("OTP has expired. Please log in again.");
+    if (user.otpCode !== dto.otp) throw new UnauthorizedException("Incorrect code. Please try again.");
+
+    // Clear OTP and complete login
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { otpCode: null, otpExpiresAt: null, lastLoginAt: new Date() },
+    });
+
+    await this.prisma.session.create({
+      data: {
+        userId: user.id,
+        token: crypto.randomUUID(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    if (user.pharmacyId) {
+      this.audit.log({
+        pharmacyId: user.pharmacyId,
+        userId: user.id,
+        action: "LOGIN",
+        entity: "User",
+        entityId: user.id,
+        newValue: { email: user.email, role: user.role, method: "2fa" },
+      });
+    }
+
+    const token = this.signToken(user.id, user.pharmacyId, user.role);
+    const { passwordHash: _, otpCode: __, otpExpiresAt: ___, ...safeUser } = user;
+    return { user: safeUser, token };
+  }
+
+  async enable2FA(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    if (user.twoFAEnabled) throw new ConflictException("2FA is already enabled");
+
+    // Send a test OTP to confirm email works
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { otpCode: otp, otpExpiresAt },
+    });
+
+    this.mail.sendOtp({ to: user.email, name: user.firstName, otp, expiresInMinutes: 10 });
+
+    return { message: "Verification code sent to your email. Submit it to confirm and enable 2FA.", emailSent: this.mail.isEnabled };
+  }
+
+  async confirm2FA(userId: string, otp: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    if (!user.otpCode || !user.otpExpiresAt) throw new BadRequestException("No pending OTP. Request enable 2FA first.");
+    if (new Date() > user.otpExpiresAt) throw new UnauthorizedException("OTP expired. Please try again.");
+    if (user.otpCode !== otp) throw new UnauthorizedException("Incorrect code.");
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFAEnabled: true, otpCode: null, otpExpiresAt: null },
+    });
+
+    return { twoFAEnabled: true, message: "Two-factor authentication is now enabled." };
+  }
+
+  async disable2FA(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFAEnabled: false, otpCode: null, otpExpiresAt: null },
+    });
+    return { twoFAEnabled: false, message: "Two-factor authentication disabled." };
+  }
+
+  get2FAStatus(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFAEnabled: true, email: true },
+    });
   }
 
   private signToken(userId: string, pharmacyId: string | null | undefined, role: string) {
