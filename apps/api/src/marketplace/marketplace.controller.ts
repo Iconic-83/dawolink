@@ -127,4 +127,34 @@ export class MarketplaceController {
   cancelOrder(@Req() req: any, @Param("id") id: string) {
     return this.service.cancelOrder(req.user.id, id);
   }
+
+  // ── Reviews ───────────────────────────────────────────────────────────────
+
+  @Post("reviews")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Submit a review for a delivered order" })
+  submitReview(@Req() req: any, @Body() dto: { orderId: string; rating: number; comment?: string }) {
+    return this.service.submitReview(req.user.id, dto);
+  }
+
+  @Get("reviews/:pharmacyId")
+  @ApiOperation({ summary: "Get reviews for a pharmacy (public)" })
+  @ApiQuery({ name: "page", required: false })
+  @ApiQuery({ name: "limit", required: false })
+  getPharmacyReviews(
+    @Param("pharmacyId") pharmacyId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.service.getPharmacyReviews(pharmacyId, page ? +page : 1, limit ? +limit : 20);
+  }
+
+  @Get("orders/:id/review")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get my review for a specific order" })
+  getMyReview(@Req() req: any, @Param("id") id: string) {
+    return this.service.getMyReview(req.user.id, id);
+  }
 }

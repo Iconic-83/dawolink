@@ -6,6 +6,116 @@ import Link from "next/link";
 import { customerApi, useCustomerAuth } from "@/lib/customer-auth";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 
+// ── Star rating component ──────────────────────────────────────────────────
+
+function StarRating({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      {[1, 2, 3, 4, 5].map(star => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange?.(star)}
+          onMouseEnter={() => onChange && setHovered(star)}
+          onMouseLeave={() => onChange && setHovered(0)}
+          style={{
+            background: "none", border: "none", padding: 0, cursor: onChange ? "pointer" : "default",
+            fontSize: 28, lineHeight: 1,
+            color: star <= (hovered || value) ? "#F59E0B" : "#D1D5DB",
+            transition: "color 0.1s",
+          }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Review section ─────────────────────────────────────────────────────────
+
+function ReviewSection({ order }: { order: any }) {
+  const [existing, setExisting] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    customerApi.get(`/v1/marketplace/orders/${order.id}/review`)
+      .then(r => { setExisting(r.data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [order.id]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (rating === 0) { setError("Please select a star rating"); return; }
+    setError(""); setSubmitting(true);
+    try {
+      const res = await customerApi.post("/v1/marketplace/reviews", {
+        orderId: order.id, rating, comment: comment.trim() || undefined,
+      });
+      setExisting(res.data);
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? "Failed to submit review");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) return null;
+
+  if (existing || submitted) {
+    return (
+      <div style={{ background: "#ECFDF5", borderRadius: 16, padding: "16px 18px", border: "1px solid #6EE7B7", marginTop: 12 }}>
+        <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: "#065F46" }}>Your Review</p>
+        <StarRating value={existing?.rating ?? rating} />
+        {(existing?.comment || comment) && (
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: "#374151" }}>{existing?.comment ?? comment}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#F7F5FF", borderRadius: 16, padding: "18px", border: "1px solid #EDE9FF", marginTop: 12 }}>
+      <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700, color: "#180D62" }}>Rate your experience</p>
+      <p style={{ margin: "0 0 14px", fontSize: 13, color: "#6B6B9A" }}>How was {order.pharmacy?.name ?? "this pharmacy"}?</p>
+      <form onSubmit={handleSubmit}>
+        <StarRating value={rating} onChange={setRating} />
+        <textarea
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+          placeholder="Share your experience (optional)…"
+          rows={3}
+          style={{
+            width: "100%", marginTop: 12, padding: "10px 12px", borderRadius: 10,
+            border: "1.5px solid #E8E4FF", fontSize: 14, resize: "none",
+            outline: "none", boxSizing: "border-box" as const, fontFamily: "inherit",
+          }}
+        />
+        {error && <p style={{ color: "#DC2626", fontSize: 13, margin: "4px 0 0" }}>{error}</p>}
+        <button
+          type="submit"
+          disabled={submitting || rating === 0}
+          style={{
+            marginTop: 10, width: "100%", padding: "12px", borderRadius: 12,
+            background: rating === 0 ? "#E8E4FF" : "linear-gradient(90deg,#00C897,#009E78)",
+            border: "none", color: rating === 0 ? "#9B9BC0" : "#fff",
+            fontSize: 14, fontWeight: 700, cursor: rating === 0 ? "not-allowed" : "pointer",
+          }}
+        >
+          {submitting ? "Submitting…" : "Submit Review"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 const STATUS_STEPS = [
   { key: "PENDING",          label: "Pending",           icon: "⏳" },
   { key: "CONFIRMED",        label: "Confirmed",          icon: "✅" },
@@ -263,6 +373,9 @@ export default function OrderDetailPage() {
           Browse Medicines
         </Link>
       )}
+
+      {/* Review prompt for delivered orders */}
+      {order.status === "DELIVERED" && <ReviewSection order={order} />}
     </div>
   );
 }

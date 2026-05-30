@@ -307,6 +307,34 @@ export class PharmacyService {
     return settings;
   }
 
+  // ── Reviews ───────────────────────────────────────────────────────────────
+
+  async getPharmacyReviews(pharmacyId: string, page = 1, limit = 20) {
+    const [reviews, total, agg] = await Promise.all([
+      this.prisma.pharmacyReview.findMany({
+        where: { pharmacyId },
+        include: { appUser: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.pharmacyReview.count({ where: { pharmacyId } }),
+      this.prisma.pharmacyReview.aggregate({
+        where: { pharmacyId },
+        _avg: { rating: true },
+        _count: { rating: true },
+      }),
+    ]);
+    return {
+      reviews,
+      total,
+      page,
+      limit,
+      averageRating: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
+      reviewCount: agg._count.rating,
+    };
+  }
+
   // ── Backup & Restore ───────────────────────────────────────────────────────
 
   async exportBackup(pharmacyId: string) {

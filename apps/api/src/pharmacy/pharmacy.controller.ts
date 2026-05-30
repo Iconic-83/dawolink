@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
   UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException, Res,
 } from "@nestjs/common";
 import { Response } from "express";
@@ -119,6 +119,13 @@ export class PharmacyController {
     if (!body || typeof body !== "object") throw new BadRequestException("Invalid backup payload");
     if (!body.version || !body.exportedAt) throw new BadRequestException("File does not appear to be a DawoLink backup");
     return this.pharmacy.restoreBackup(req.user.pharmacyId, req.user.id, body);
+  }
+
+  // ── Reviews ────────────────────────────────────────────────────────────────
+
+  @Get("reviews")
+  async getMyReviews(@Req() req: any, @Query("page") page?: string, @Query("limit") limit?: string) {
+    return this.pharmacy.getPharmacyReviews(req.user.pharmacyId, page ? +page : 1, limit ? +limit : 20);
   }
 
   // ── Settings ───────────────────────────────────────────────────────────────

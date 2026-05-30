@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   ArrowLeftRight,
   Navigation,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ const navItems = [
   { href: "/staff",      label: "Staff",          icon: Users },
   { href: "/roles",      label: "Roles",          icon: ShieldCheck },
   { href: "/analytics",  label: "Analytics",      icon: BarChart3 },
+  { href: "/reviews",    label: "Reviews",        icon: Star },
   { href: "/billing",    label: "Billing",        icon: CreditCard },
   { href: "/audit-logs", label: "Audit Logs",     icon: ClipboardList },
   { href: "/pharmacy",   label: "Pharmacy",       icon: Building2 },

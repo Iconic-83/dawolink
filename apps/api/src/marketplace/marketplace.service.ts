@@ -382,4 +382,58 @@ export class MarketplaceService {
       },
     });
   }
+
+  // ── Reviews ───────────────────────────────────────────────────────────────
+
+  async submitReview(appUserId: string, dto: { orderId: string; rating: number; comment?: string }) {
+    if (dto.rating < 1 || dto.rating > 5) throw new BadRequestException("Rating must be between 1 and 5");
+
+    const order = await this.prisma.medicineOrder.findFirst({
+      where: { id: dto.orderId, appUserId, status: "DELIVERED" },
+    });
+    if (!order) throw new NotFoundException("Delivered order not found");
+
+    const existing = await this.prisma.pharmacyReview.findUnique({ where: { orderId: dto.orderId } });
+    if (existing) throw new ConflictException("You have already reviewed this order");
+
+    return this.prisma.pharmacyReview.create({
+      data: {
+        appUserId,
+        pharmacyId: order.pharmacyId,
+        orderId: dto.orderId,
+        rating: dto.rating,
+        comment: dto.comment ?? null,
+      },
+    });
+  }
+
+  async getPharmacyReviews(pharmacyId: string, page = 1, limit = 20) {
+    const [reviews, total, agg] = await Promise.all([
+      this.prisma.pharmacyReview.findMany({
+        where: { pharmacyId },
+        include: { appUser: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.pharmacyReview.count({ where: { pharmacyId } }),
+      this.prisma.pharmacyReview.aggregate({
+        where: { pharmacyId },
+        _avg: { rating: true },
+        _count: { rating: true },
+      }),
+    ]);
+    return {
+      reviews,
+      total,
+      page,
+      limit,
+      averageRating: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
+      reviewCount: agg._count.rating,
+    };
+  }
+
+  async getMyReview(appUserId: string, orderId: string) {
+    return this.prisma.pharmacyReview.findUnique({ where: { orderId } });
+  }
 }
