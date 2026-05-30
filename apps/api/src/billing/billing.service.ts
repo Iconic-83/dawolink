@@ -3,6 +3,7 @@ import { PrismaService } from "../common/database/prisma.service";
 import { Plan } from "@dawolink/database";
 import { SubmitPaymentDto } from "./billing.dto";
 import { PLAN_LIMITS } from "../common/guards/plan.guard";
+import { WaafiPayService } from "../payments/waafipay.service";
 
 export const PLAN_PRICES: Record<Plan, number> = {
   STARTER: 29,
@@ -25,7 +26,10 @@ export const PLANS_INFO = [
 
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private waafi: WaafiPayService,
+  ) {}
 
   async getSubscription(pharmacyId: string) {
     return this.prisma.subscription.findUnique({
@@ -250,5 +254,46 @@ export class BillingService {
       this.prisma.subscription.count(),
     ]);
     return { subscriptions, total, page, limit };
+  }
+
+  // ── EVC Plus gateway payment ───────────────────────────────────────────────
+
+  async payWithEvc(pharmacyId: string, dto: {
+    phone: string;
+    plan: Plan;
+    billingCycle: "MONTHLY" | "ANNUAL";
+    method?: "EVC_PLUS" | "ZAAD" | "SAHAL";
+  }) {
+    const cycle = dto.billingCycle ?? "MONTHLY";
+    const plan = dto.plan ?? "STARTER";
+    const amount = cycle === "ANNUAL" ? PLAN_PRICES[plan] * 10 : PLAN_PRICES[plan];
+
+    const pharmacy = await this.prisma.pharmacy.findUnique({
+      where: { id: pharmacyId },
+      select: { name: true },
+    });
+
+    const referenceId = `DAWO-${pharmacyId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
+    const result = await this.waafi.initiate({
+      phone: dto.phone,
+      amount,
+      description: `DawoLink ${plan} plan (${cycle}) — ${pharmacy?.name ?? pharmacyId}`,
+      referenceId,
+      method: dto.method ?? "EVC_PLUS",
+    });
+
+    if (result.success) {
+      // Auto-activate subscription
+      await this.submitPayment(pharmacyId, {
+        method: (dto.method ?? "EVC_PLUS") as any,
+        reference: result.transactionId ?? referenceId,
+        amount,
+        plan,
+        billingCycle: cycle,
+      });
+    }
+
+    return { ...result, amount, plan, billingCycle: cycle, referenceId };
   }
 }

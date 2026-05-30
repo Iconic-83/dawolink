@@ -32,9 +32,18 @@ export class BillingController {
   }
 
   @Post("pay")
-  @ApiOperation({ summary: "Submit EVC/Zaad/Sahal payment to activate or upgrade subscription" })
+  @ApiOperation({ summary: "Submit manual reference payment to activate subscription" })
   submitPayment(@Req() req: any, @Body() dto: SubmitPaymentDto) {
     return this.billing.submitPayment(req.user.pharmacyId, dto);
+  }
+
+  @Post("pay/evc")
+  @ApiOperation({ summary: "Initiate EVC Plus / Zaad / Sahal push payment and auto-activate on success" })
+  payWithEvc(
+    @Req() req: any,
+    @Body() body: { phone: string; plan: any; billingCycle: any; method?: any },
+  ) {
+    return this.billing.payWithEvc(req.user.pharmacyId, body);
   }
 
   @Get("plans")

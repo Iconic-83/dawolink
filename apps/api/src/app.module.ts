@@ -30,6 +30,7 @@ import { DriverModule } from "./driver/driver.module";
 import { LoyaltyModule } from "./loyalty/loyalty.module";
 import { PromotionsModule } from "./promotions/promotions.module";
 import { SupplierPortalModule } from "./supplier-portal/supplier-portal.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 @Module({
   controllers: [HealthController],
@@ -61,6 +62,7 @@ import { SupplierPortalModule } from "./supplier-portal/supplier-portal.module";
     LoyaltyModule,
     PromotionsModule,
     SupplierPortalModule,
+    PaymentsModule,
     MarketplaceModule,
     OrderModule,
   ],

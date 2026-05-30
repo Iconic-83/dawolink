@@ -167,11 +167,38 @@ function PaymentForm({ plan, cycle, onClose }: {
 }) {
   const qc = useQueryClient();
   const [method, setMethod] = useState("EVC_PLUS");
+  const [phone, setPhone] = useState("");
   const [reference, setReference] = useState("");
+  const [payMode, setPayMode] = useState<"gateway" | "manual">("gateway");
+  const [payResult, setPayResult] = useState<any>(null);
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === method)!;
   const price = cycle === "ANNUAL" ? PLAN_PRICES[plan].annual : PLAN_PRICES[plan].monthly;
 
-  const { mutate, isPending } = useMutation({
+  // Check if gateway is available
+  const { data: gatewayStatus } = useQuery<{ enabled: boolean }>({
+    queryKey: ["gateway-status"],
+    queryFn: () => api.get("/v1/payments/gateway/status").then(r => r.data),
+    staleTime: 60_000,
+  });
+  const gatewayEnabled = gatewayStatus?.enabled ?? false;
+
+  // Gateway payment (EVC push)
+  const { mutate: payGateway, isPending: gatewayPending } = useMutation({
+    mutationFn: () => api.post("/v1/billing/pay/evc", { phone, plan, billingCycle: cycle, method }).then(r => r.data),
+    onSuccess: (data) => {
+      setPayResult(data);
+      if (data.success) {
+        toast.success("Payment successful! Subscription activated.");
+        qc.invalidateQueries({ queryKey: ["subscription"] });
+        qc.invalidateQueries({ queryKey: ["billing-usage"] });
+        setTimeout(onClose, 2000);
+      }
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Payment failed"),
+  });
+
+  // Manual reference payment
+  const { mutate: payManual, isPending: manualPending } = useMutation({
     mutationFn: () => api.post("/v1/billing/pay", { method, reference, amount: price, plan, billingCycle: cycle }).then(r => r.data),
     onSuccess: (data) => {
       toast.success(data.message ?? "Payment submitted! Subscription activated.");
@@ -181,6 +208,8 @@ function PaymentForm({ plan, cycle, onClose }: {
     },
     onError: (e: any) => toast.error(e.response?.data?.message ?? "Payment failed"),
   });
+
+  const isPending = gatewayPending || manualPending;
 
   return (
     <div className="space-y-5">
@@ -195,14 +224,8 @@ function PaymentForm({ plan, cycle, onClose }: {
         <label className="block text-sm font-medium text-gray-700 mb-2">Payment method</label>
         <div className="grid grid-cols-2 gap-2">
           {PAYMENT_METHODS.map(m => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setMethod(m.id)}
-              className={`p-3 rounded-xl border-2 text-left transition ${
-                method === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-100 bg-white hover:border-gray-200"
-              }`}
-            >
+            <button key={m.id} type="button" onClick={() => setMethod(m.id)}
+              className={`p-3 rounded-xl border-2 text-left transition ${method === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-100 bg-white hover:border-gray-200"}`}>
               <p className="text-sm font-semibold" style={{ color: m.color }}>{m.label}</p>
               <p className="text-xs text-gray-400 mt-0.5">{m.number}</p>
             </button>
@@ -210,41 +233,81 @@ function PaymentForm({ plan, cycle, onClose }: {
         </div>
       </div>
 
-      {/* Instructions */}
-      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm">
-        <p className="font-semibold text-amber-800 mb-1">How to pay:</p>
-        <ol className="text-amber-700 space-y-1 text-xs list-decimal pl-4">
-          <li>Send <strong>{formatCurrency(price)}</strong> via {selectedMethod.label}</li>
-          <li>To: <strong>{selectedMethod.number}</strong></li>
-          <li>Copy the transaction reference number</li>
-          <li>Paste it below and click Confirm</li>
-        </ol>
-      </div>
+      {/* Payment mode toggle */}
+      {gatewayEnabled && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+          {[
+            { key: "gateway", label: "🚀 Pay with phone" },
+            { key: "manual",  label: "📋 Manual reference" },
+          ].map(opt => (
+            <button key={opt.key} onClick={() => { setPayMode(opt.key as any); setPayResult(null); }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${payMode === opt.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Reference */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Transaction reference *</label>
-        <input
-          value={reference}
-          onChange={e => setReference(e.target.value)}
-          placeholder="e.g. MP210528001234"
-          className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
+      {/* Gateway mode */}
+      {(gatewayEnabled && payMode === "gateway") ? (
+        <div className="space-y-4">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm">
+            <p className="font-semibold text-emerald-800 mb-1">Instant payment</p>
+            <p className="text-emerald-700 text-xs">Enter your {selectedMethod.label} number. You will receive a prompt on your phone to confirm the payment.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{selectedMethod.label} Phone Number *</label>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="0615000000" maxLength={15}
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <p className="text-xs text-gray-400 mt-1">Enter your registered {selectedMethod.label} number</p>
+          </div>
 
-      <div className="flex gap-3">
-        <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition">
-          Cancel
-        </button>
-        <button
-          onClick={() => mutate()}
-          disabled={isPending || !reference.trim()}
-          className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition"
-        >
-          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          Confirm Payment — {formatCurrency(price)}
-        </button>
-      </div>
+          {payResult && (
+            <div className={`rounded-xl p-4 text-sm ${payResult.success ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-700"}`}>
+              <p className="font-semibold">{payResult.success ? "✓ Payment Successful" : "✗ Payment Failed"}</p>
+              <p className="mt-1 text-xs">{payResult.message}</p>
+              {payResult.transactionId && <p className="text-xs mt-1 font-mono">Tx: {payResult.transactionId}</p>}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Cancel</button>
+            <button onClick={() => payGateway()} disabled={isPending || !phone.trim() || !!payResult?.success}
+              className="flex-1 py-2.5 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition"
+              style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}>
+              {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</> : `Pay ${formatCurrency(price)}`}
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Manual mode */
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm">
+            <p className="font-semibold text-amber-800 mb-1">How to pay manually:</p>
+            <ol className="text-amber-700 space-y-1 text-xs list-decimal pl-4">
+              <li>Send <strong>{formatCurrency(price)}</strong> via {selectedMethod.label}</li>
+              <li>To: <strong>{selectedMethod.number}</strong></li>
+              <li>Copy the transaction reference number</li>
+              <li>Paste it below and click Confirm</li>
+            </ol>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Transaction reference *</label>
+            <input value={reference} onChange={e => setReference(e.target.value)}
+              placeholder="e.g. MP210528001234"
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Cancel</button>
+            <button onClick={() => payManual()} disabled={isPending || !reference.trim()}
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition">
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Confirm Payment — {formatCurrency(price)}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

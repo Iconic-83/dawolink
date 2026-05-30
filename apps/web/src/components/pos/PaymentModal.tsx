@@ -36,6 +36,27 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
   const totalAmount = total();
   const paid = parseFloat(amountPaid) || 0;
   const change = Math.max(0, paid - totalAmount);
+  const [evcPhone, setEvcPhone] = useState("");
+  const [evcResult, setEvcResult] = useState<any>(null);
+  const [evcLoading, setEvcLoading] = useState(false);
+  const isMobilePayment = ["EVC_PLUS", "ZAAD", "SAHAL", "PREMIER_WALLET"].includes(paymentMethod);
+
+  async function initiateEvcPayment() {
+    if (!evcPhone.trim()) return;
+    setEvcLoading(true); setEvcResult(null);
+    try {
+      const { data } = await api.post("/v1/payments/initiate", {
+        phone: evcPhone,
+        amount: totalAmount,
+        description: `POS Sale — ${items.length} item${items.length !== 1 ? "s" : ""}`,
+        referenceId: `POS-${Date.now().toString(36).toUpperCase()}`,
+        method: paymentMethod,
+      });
+      setEvcResult(data);
+    } catch (e: any) {
+      setEvcResult({ success: false, message: e.response?.data?.message ?? "Payment failed" });
+    } finally { setEvcLoading(false); }
+  }
 
   const saveOffline = async () => {
     const localId = `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -198,6 +219,39 @@ export function PaymentModal({ branchId, onClose, onSuccess }: Props) {
               ))}
             </div>
           </div>
+
+          {/* EVC Plus / Mobile payment */}
+          {isMobilePayment && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Customer Phone Number</label>
+                <input
+                  type="tel"
+                  value={evcPhone}
+                  onChange={e => { setEvcPhone(e.target.value); setEvcResult(null); }}
+                  placeholder="0615000000"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={initiateEvcPayment}
+                disabled={evcLoading || !evcPhone.trim() || evcResult?.success}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}
+              >
+                {evcLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending prompt…</> : "Send Payment Prompt"}
+              </button>
+              {evcResult && (
+                <div className={`rounded-xl px-4 py-3 text-sm ${evcResult.success ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                  <p className="font-semibold">{evcResult.success ? "✓ Payment Confirmed" : "✗ " + evcResult.message}</p>
+                  {evcResult.transactionId && <p className="text-xs mt-0.5 font-mono">Ref: {evcResult.transactionId}</p>}
+                </div>
+              )}
+              <p className="text-xs text-gray-400 text-center">
+                Gateway not configured? Complete the sale — payment recorded as {paymentMethod.replace(/_/g, " ")}.
+              </p>
+            </div>
+          )}
 
           {/* Amount paid (cash only) */}
           {paymentMethod === "CASH" && (
