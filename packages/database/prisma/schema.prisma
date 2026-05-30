@@ -354,8 +354,27 @@ model Supplier {
   pharmacy     Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   inventory    InventoryItem[]
   purchaseOrders PurchaseOrder[]
+  users        SupplierUser[]
 
   @@map("suppliers")
+}
+
+model SupplierUser {
+  id           String    @id @default(cuid())
+  supplierId   String
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  supplier     Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@map("supplier_users")
 }
 
 model PurchaseOrder {
@@ -374,6 +393,8 @@ model PurchaseOrder {
 
   // Invoice & debt tracking
   supplierInvoiceNo    String?
+  supplierNote         String?
+  supplierConfirmedAt  DateTime?
   paymentStatus        PaymentStatus @default(UNPAID)
   amountPaid           Decimal       @default(0) @db.Decimal(12, 2)
   paidAt               DateTime?

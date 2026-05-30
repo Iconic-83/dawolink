@@ -97,6 +97,101 @@ function PaymentModal({ order, onClose }: { order: any; onClose: () => void }) {
   );
 }
 
+// ── Supplier Portal Users Panel ───────────────────────────────────────────
+
+function SupplierUsersPanel({ supplierId }: { supplierId: string }) {
+  const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", phone: "" });
+
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ["supplier-users", supplierId],
+    queryFn: () => api.get(`/v1/supplier-portal/suppliers/${supplierId}/users`).then(r => r.data),
+  });
+
+  const { mutate: create, isPending } = useMutation({
+    mutationFn: () => api.post(`/v1/supplier-portal/suppliers/${supplierId}/users`, form).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["supplier-users", supplierId] });
+      toast.success("Supplier account created");
+      setShowCreate(false);
+      setForm({ firstName: "", lastName: "", email: "", password: "", phone: "" });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed"),
+  });
+
+  const inp = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple";
+
+  return (
+    <div className="border-t border-gray-100 pt-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-700">Portal Accounts</p>
+        <button onClick={() => setShowCreate(s => !s)}
+          className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+          style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}>
+          + Add Account
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+              <input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} className={inp} placeholder="Ahmed" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+              <input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} className={inp} placeholder="Hassan" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className={inp} placeholder="supplier@company.com" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inp} placeholder="Min 8 chars" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Phone (opt.)</label>
+              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inp} placeholder="+252…" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-gray-200 text-xs text-gray-600">Cancel</button>
+            <button onClick={() => create()} disabled={isPending || !form.email || !form.password || !form.firstName}
+              className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+              style={{ background: "linear-gradient(90deg,#00C897,#009E78)" }}>
+              {isPending ? "Creating…" : "Create Account"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {users.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No portal accounts yet. Add one so the supplier can log in and view their orders.</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u: any) => (
+            <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</p>
+                <p className="text-xs text-gray-400">{u.email}</p>
+              </div>
+              <a href="/supplier/login" target="_blank"
+                className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 font-medium hover:bg-indigo-100 transition">
+                Portal ↗
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SuppliersPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("suppliers");
@@ -501,6 +596,9 @@ export default function SuppliersPage() {
                   </div>
                 )}
               </div>
+
+              {/* Supplier Portal Accounts */}
+              <SupplierUsersPanel supplierId={selectedSupplier.id} />
 
               <div className="flex justify-end gap-2">
                 <button onClick={() => { setSelectedSupplier(null); setPrefillSupplier(selectedSupplier.id); setShowCreatePO(true); }}

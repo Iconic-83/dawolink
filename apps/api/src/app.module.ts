@@ -29,6 +29,7 @@ import { ChatModule } from "./chat/chat.module";
 import { DriverModule } from "./driver/driver.module";
 import { LoyaltyModule } from "./loyalty/loyalty.module";
 import { PromotionsModule } from "./promotions/promotions.module";
+import { SupplierPortalModule } from "./supplier-portal/supplier-portal.module";
 
 @Module({
   controllers: [HealthController],
@@ -59,6 +60,7 @@ import { PromotionsModule } from "./promotions/promotions.module";
     DriverModule,
     LoyaltyModule,
     PromotionsModule,
+    SupplierPortalModule,
     MarketplaceModule,
     OrderModule,
   ],
