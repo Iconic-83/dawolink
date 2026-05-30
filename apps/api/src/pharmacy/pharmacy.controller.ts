@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param,
-  UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException,
+  UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException, Res,
 } from "@nestjs/common";
+import { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiTags, ApiBearerAuth, ApiConsumes } from "@nestjs/swagger";
 import { diskStorage } from "multer";
@@ -100,6 +101,24 @@ export class PharmacyController {
   @Patch("staff/:id/reactivate")
   reactivateStaff(@Req() req: any, @Param("id") id: string) {
     return this.pharmacy.reactivateStaff(req.user.pharmacyId, req.user.id, id);
+  }
+
+  // ── Backup & Restore ───────────────────────────────────────────────────────
+
+  @Get("backup")
+  async exportBackup(@Req() req: any, @Res() res: Response) {
+    const data = await this.pharmacy.exportBackup(req.user.pharmacyId);
+    const filename = `dawolink-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(data, null, 2));
+  }
+
+  @Post("restore")
+  restoreBackup(@Req() req: any, @Body() body: any) {
+    if (!body || typeof body !== "object") throw new BadRequestException("Invalid backup payload");
+    if (!body.version || !body.exportedAt) throw new BadRequestException("File does not appear to be a DawoLink backup");
+    return this.pharmacy.restoreBackup(req.user.pharmacyId, req.user.id, body);
   }
 
   // ── Settings ───────────────────────────────────────────────────────────────

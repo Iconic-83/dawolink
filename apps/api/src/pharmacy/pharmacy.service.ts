@@ -306,4 +306,100 @@ export class PharmacyService {
 
     return settings;
   }
+
+  // ── Backup & Restore ───────────────────────────────────────────────────────
+
+  async exportBackup(pharmacyId: string) {
+    const [pharmacy, branches, staff, medicines, inventory, suppliers, purchaseOrders, customers, transactions, settings] = await Promise.all([
+      this.prisma.pharmacy.findUnique({ where: { id: pharmacyId } }),
+      this.prisma.branch.findMany({ where: { pharmacyId } }),
+      this.prisma.user.findMany({
+        where: { pharmacyId },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, branchId: true, isActive: true, createdAt: true },
+      }),
+      this.prisma.medicine.findMany({ where: { pharmacyId, deletedAt: null } }),
+      this.prisma.inventoryItem.findMany({
+        where: { branch: { pharmacyId }, deletedAt: null },
+        include: { medicine: { select: { name: true, barcode: true } } },
+      }),
+      this.prisma.supplier.findMany({ where: { pharmacyId } }),
+      this.prisma.purchaseOrder.findMany({
+        where: { pharmacyId },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      }),
+      this.prisma.customer.findMany({ where: { pharmacyId } }),
+      this.prisma.transaction.findMany({
+        where: { branch: { pharmacyId } },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+        take: 1000,
+      }),
+      this.prisma.pharmacySettings.findUnique({ where: { pharmacyId } }),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      version: "1.0",
+      pharmacy,
+      settings,
+      branches,
+      staff,
+      medicines,
+      inventory,
+      suppliers,
+      purchaseOrders,
+      customers,
+      transactions,
+    };
+  }
+
+  async restoreBackup(pharmacyId: string, actorId: string, backup: any) {
+    const { medicines = [], suppliers = [], inventory = [] } = backup;
+    let medicinesRestored = 0;
+    let suppliersRestored = 0;
+    let inventoryRestored = 0;
+
+    // Restore suppliers (upsert by name)
+    for (const s of suppliers) {
+      const { id: _id, pharmacyId: _pid, createdAt: _c, updatedAt: _u, ...data } = s;
+      await this.prisma.supplier.upsert({
+        where: { id: s.id ?? "__nonexistent__" },
+        update: { ...data, pharmacyId },
+        create: { ...data, pharmacyId },
+      }).catch(() => this.prisma.supplier.create({ data: { ...data, pharmacyId } }));
+      suppliersRestored++;
+    }
+
+    // Restore medicines (upsert by barcode if present, else by name+category)
+    for (const m of medicines) {
+      const { id: _id, pharmacyId: _pid, createdAt: _c, updatedAt: _u, deletedAt: _d, inventory: _inv, ...data } = m;
+      const existing = m.barcode
+        ? await this.prisma.medicine.findFirst({ where: { pharmacyId, barcode: m.barcode, deletedAt: null } })
+        : await this.prisma.medicine.findFirst({ where: { pharmacyId, name: m.name, deletedAt: null } });
+
+      if (existing) {
+        await this.prisma.medicine.update({ where: { id: existing.id }, data: { ...data } });
+      } else {
+        await this.prisma.medicine.create({ data: { ...data, pharmacyId } });
+      }
+      medicinesRestored++;
+    }
+
+    // Restore inventory items (skip — inventory is branch-specific and quantity-sensitive)
+    // We only log the count from the backup for reference
+    inventoryRestored = inventory.length;
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "BACKUP_RESTORED",
+      entity: "Pharmacy",
+      entityId: pharmacyId,
+      newValue: { medicinesRestored, suppliersRestored, inventoryRestored },
+    });
+
+    return { medicinesRestored, suppliersRestored, inventoryRestored, message: "Medicines and suppliers restored. Inventory items were skipped (branch-specific — re-add manually)." };
+  }
 }

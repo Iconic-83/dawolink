@@ -12,6 +12,7 @@ import {
   Building2, MapPin, Phone, Mail, FileText, Globe,
   Camera, Edit2, Plus, Trash2, Loader2, Save,
   CheckCircle2, AlertTriangle, Star, ChevronRight, Settings2,
+  Download, Upload, RotateCcw,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
@@ -604,9 +605,64 @@ function SettingsTab() {
 
 // ── Danger zone tab ────────────────────────────────────────────────────────
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+
 function DangerTab({ pharmacy }: { pharmacy: any }) {
+  const [exporting, setExporting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<any>(null);
+  const restoreRef = useRef<HTMLInputElement>(null);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(`${API_URL}/v1/pharmacy/backup`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dawolink-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Backup downloaded");
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleRestoreFile(file: File) {
+    setRestoring(true);
+    setRestoreResult(null);
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(`${API_URL}/v1/pharmacy/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(backup),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Restore failed");
+      setRestoreResult(data);
+      toast.success("Backup restored successfully");
+    } catch (e: any) {
+      toast.error(e.message ?? "Restore failed — check file format");
+    } finally {
+      setRestoring(false);
+      if (restoreRef.current) restoreRef.current.value = "";
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* Info */}
       <div className="bg-white rounded-2xl border border-gray-100 p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-1">Pharmacy Information</h2>
         <p className="text-sm text-gray-500 mb-5">Read-only identifiers for your account</p>
@@ -627,35 +683,85 @@ function DangerTab({ pharmacy }: { pharmacy: any }) {
         </div>
       </div>
 
+      {/* Backup & Restore */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Backup & Restore</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Export all your pharmacy data as a JSON backup. Restore imports medicines and suppliers from a previous backup.
+        </p>
+        <div className="space-y-3">
+          {/* Export */}
+          <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Export backup</p>
+              <p className="text-xs text-gray-500">Download all pharmacy data (medicines, inventory, suppliers, customers, transactions)</p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-white transition disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Export
+            </button>
+          </div>
+
+          {/* Restore */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Restore from backup</p>
+                <p className="text-xs text-gray-500">Upload a DawoLink backup file to restore medicines and suppliers</p>
+              </div>
+              <button
+                onClick={() => restoreRef.current?.click()}
+                disabled={restoring}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-200 bg-amber-50 text-sm font-medium text-amber-700 hover:bg-amber-100 transition disabled:opacity-50"
+              >
+                {restoring ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Restore
+              </button>
+              <input
+                ref={restoreRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleRestoreFile(f); }}
+              />
+            </div>
+            {restoreResult && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-800 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <RotateCcw className="h-3.5 w-3.5" /> Restore complete
+                </div>
+                <p>Medicines restored: <strong>{restoreResult.medicinesRestored}</strong></p>
+                <p>Suppliers restored: <strong>{restoreResult.suppliersRestored}</strong></p>
+                <p className="text-green-600">{restoreResult.message}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Danger */}
       <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
         <h2 className="text-base font-semibold text-red-800 mb-1 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" /> Danger Zone
         </h2>
         <p className="text-sm text-red-700 mb-4">
-          These actions are irreversible. Contact support if you need to close your account.
+          Contact support to close your account.
         </p>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-red-100">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Export all data</p>
-              <p className="text-xs text-gray-500">Download all your pharmacy data as a ZIP archive</p>
-            </div>
-            <button className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              Export
-            </button>
+        <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-red-100">
+          <div>
+            <p className="text-sm font-semibold text-red-700">Delete account</p>
+            <p className="text-xs text-gray-500">Permanently remove all data. This cannot be undone.</p>
           </div>
-          <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-red-100">
-            <div>
-              <p className="text-sm font-semibold text-red-700">Delete account</p>
-              <p className="text-xs text-gray-500">Permanently remove all data. This cannot be undone.</p>
-            </div>
-            <button
-              onClick={() => toast.error("Contact support@dawolink.com to delete your account")}
-              className="px-4 py-2 rounded-lg border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition"
-            >
-              Delete
-            </button>
-          </div>
+          <button
+            onClick={() => toast.error("Contact support@dawolink.com to delete your account")}
+            className="px-4 py-2 rounded-lg border border-red-200 text-sm font-semibold text-red-600 hover:bg-red-50 transition"
+          >
+            Delete
+          </button>
         </div>
       </div>
     </div>
