@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
-import { AddMedicineModal } from "@/components/inventory/AddMedicineModal";
-import { AddStockModal } from "@/components/inventory/AddStockModal";
+import { QuickAddMedicineModal } from "@/components/inventory/QuickAddMedicineModal";
+import { ExcelImportModal } from "@/components/inventory/ExcelImportModal";
 import { AdjustStockModal } from "@/components/inventory/AdjustStockModal";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -13,7 +13,7 @@ import { PageSpinner } from "@/components/ui/Spinner";
 import { formatCurrency } from "@/lib/utils";
 import {
   Plus, Search, Package, Layers, SlidersHorizontal,
-  Barcode, ChevronDown, Edit2, PlusCircle,
+  Barcode, ChevronDown, Edit2, PlusCircle, FileSpreadsheet,
 } from "lucide-react";
 
 type Tab = "catalog" | "stock";
@@ -31,10 +31,9 @@ export default function InventoryPage() {
   const [stockPage, setStockPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
-  const [showAddMed, setShowAddMed] = useState(false);
-  const [showAddStock, setShowAddStock] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [adjustItem, setAdjustItem] = useState<any>(null);
-  const [prefillMedId, setPrefillMedId] = useState<string | undefined>();
 
   const { data: medicines = [], isLoading: loadingMeds } = useQuery<any[]>({
     queryKey: ["medicines", search],
@@ -96,11 +95,11 @@ export default function InventoryPage() {
           <p className="text-sm text-gray-500 mt-0.5">Medicine catalog & stock management</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setPrefillMedId(undefined); setShowAddStock(true); }} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition">
-            <Layers className="h-4 w-4" />
-            Add Stock
+          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition">
+            <FileSpreadsheet className="h-4 w-4" />
+            Import Excel
           </button>
-          <button onClick={() => setShowAddMed(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition">
+          <button onClick={() => setShowQuickAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition">
             <Plus className="h-4 w-4" />
             Add Medicine
           </button>
@@ -251,7 +250,7 @@ export default function InventoryPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button
-                            onClick={() => { setPrefillMedId(med.id); setShowAddStock(true); }}
+                            onClick={() => setShowQuickAdd(true)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             title="Add stock"
                           >
@@ -358,8 +357,8 @@ export default function InventoryPage() {
         )}
       </div>
 
-      <AddMedicineModal open={showAddMed} onClose={() => setShowAddMed(false)} />
-      <AddStockModal open={showAddStock} onClose={() => setShowAddStock(false)} prefillMedicineId={prefillMedId} />
+      <QuickAddMedicineModal open={showQuickAdd} onClose={() => setShowQuickAdd(false)} />
+      <ExcelImportModal open={showImport} onClose={() => setShowImport(false)} />
       <AdjustStockModal open={!!adjustItem} onClose={() => setAdjustItem(null)} item={adjustItem} />
     </div>
   );

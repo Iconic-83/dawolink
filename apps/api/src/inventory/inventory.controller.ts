@@ -1,7 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from "@nestjs/common";
-import { ApiTags, ApiBearerAuth, ApiQuery } from "@nestjs/swagger";
+import {
+  Controller, Get, Post, Body, Param, Query,
+  UseGuards, Req, Res, UploadedFile, UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ApiTags, ApiBearerAuth, ApiQuery, ApiConsumes } from "@nestjs/swagger";
+import { Response } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { InventoryService } from "./inventory.service";
+import { QuickAddService, QuickAddDto } from "./quick-add.service";
 import { CreateInventoryItemDto } from "./dto/create-inventory-item.dto";
 import { StockAdjustmentDto } from "./dto/stock-adjustment.dto";
 
@@ -10,7 +16,55 @@ import { StockAdjustmentDto } from "./dto/stock-adjustment.dto";
 @UseGuards(JwtAuthGuard)
 @Controller("v1/inventory")
 export class InventoryController {
-  constructor(private inventory: InventoryService) {}
+  constructor(
+    private inventory: InventoryService,
+    private quickAdd: QuickAddService,
+  ) {}
+
+  // ── Quick Add (unified medicine + stock in one step) ──────────────────────
+
+  @Post("quick-add")
+  quickAddMedicine(@Req() req: any, @Body() dto: QuickAddDto) {
+    return this.quickAdd.quickAdd(req.user.pharmacyId, req.user.id, dto);
+  }
+
+  // ── Excel Import ──────────────────────────────────────────────────────────
+
+  @Get("import/template")
+  downloadTemplate(@Res() res: Response) {
+    const buffer = this.quickAdd.generateExcelTemplate();
+    res.set({
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": "attachment; filename=dawolink-medicine-import-template.xlsx",
+    });
+    res.send(buffer);
+  }
+
+  @Post("import/preview")
+  @ApiConsumes("multipart/form-data")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024 } }))
+  previewImport(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body("branchId") branchId: string,
+  ) {
+    if (!file) throw new Error("No file uploaded");
+    return this.quickAdd.parseExcelTemplate(file.buffer, req.user.pharmacyId, branchId);
+  }
+
+  @Post("import/confirm")
+  @ApiConsumes("multipart/form-data")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024 } }))
+  confirmImport(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body("branchId") branchId: string,
+  ) {
+    if (!file) throw new Error("No file uploaded");
+    return this.quickAdd.confirmImport(req.user.pharmacyId, req.user.id, branchId, file.buffer);
+  }
+
+  // ── Legacy endpoints (kept for backward compatibility) ────────────────────
 
   @Post("branches/:branchId/items")
   addItem(@Req() req: any, @Param("branchId") branchId: string, @Body() dto: CreateInventoryItemDto) {
