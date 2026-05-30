@@ -440,6 +440,7 @@ model AppUser {
   pushSubscriptions AppPushSubscription[]
   reviews           PharmacyReview[]
   loyaltyAccount    LoyaltyAccount?
+  insuranceClaims   InsuranceClaim[]
 
   @@map("app_users")
 }
@@ -486,10 +487,11 @@ model MedicineOrder {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  appUser         AppUser             @relation(fields: [appUserId], references: [id])
-  pharmacy        Pharmacy            @relation(fields: [pharmacyId], references: [id])
-  driver          User?               @relation("DriverOrders", fields: [driverId], references: [id])
-  items           MedicineOrderItem[]
+  appUser          AppUser             @relation(fields: [appUserId], references: [id])
+  pharmacy         Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  driver           User?               @relation("DriverOrders", fields: [driverId], references: [id])
+  items            MedicineOrderItem[]
+  insuranceClaims  InsuranceClaim[]
 
   @@index([driverId])
   @@map("medicine_orders")
@@ -951,4 +953,147 @@ enum PrescriptionStatus {
   PENDING_REVIEW
   VERIFIED
   REJECTED
+}
+
+// ── Phase 3: National Intelligence ──────────────────────────────────────────
+
+model MedicineRecall {
+  id           String    @id @default(cuid())
+  medicineName String
+  batchNumber  String?
+  manufacturer String?
+  reason       String
+  severity     RecallSeverity @default(LOW)
+  issuedAt     DateTime  @default(now())
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("medicine_recalls")
+}
+
+enum RecallSeverity {
+  LOW
+  HIGH
+  CRITICAL
+}
+
+// ── Phase 3: Doctor Portal & Electronic Prescriptions ──────────────────────
+
+model Doctor {
+  id            String    @id @default(cuid())
+  name          String
+  licenseNumber String    @unique
+  specialty     String?
+  phone         String    @unique
+  email         String?   @unique
+  password      String
+  clinicName    String?
+  clinicCity    String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  prescriptions ElectronicPrescription[]
+
+  @@map("doctors")
+}
+
+model ElectronicPrescription {
+  id           String   @id @default(cuid())
+  doctorId     String
+  patientName  String
+  patientPhone String
+  patientAge   Int?
+  diagnosis    String?
+  medicines    Json
+  notes        String?
+  status       EPrescriptionStatus @default(ISSUED)
+  issuedAt     DateTime @default(now())
+  expiresAt    DateTime
+  dispensedAt  DateTime?
+  dispensedBy  String?
+
+  doctor       Doctor   @relation(fields: [doctorId], references: [id])
+
+  @@index([patientPhone])
+  @@map("electronic_prescriptions")
+}
+
+enum EPrescriptionStatus {
+  ISSUED
+  DISPENSED
+  EXPIRED
+  CANCELLED
+}
+
+// ── Phase 3: Insurance ─────────────────────────────────────────────────────
+
+model InsuranceCompany {
+  id           String   @id @default(cuid())
+  name         String
+  code         String   @unique
+  contactEmail String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  claims       InsuranceClaim[]
+
+  @@map("insurance_companies")
+}
+
+model InsuranceClaim {
+  id                String        @id @default(cuid())
+  appUserId         String
+  orderId           String
+  insuranceCompanyId String
+  memberId          String
+  status            ClaimStatus   @default(PENDING)
+  requestedAmount   Decimal       @db.Decimal(10, 2)
+  approvedAmount    Decimal?      @db.Decimal(10, 2)
+  rejectionReason   String?
+  submittedAt       DateTime      @default(now())
+  processedAt       DateTime?
+
+  appUser           AppUser       @relation(fields: [appUserId], references: [id])
+  order             MedicineOrder @relation(fields: [orderId], references: [id])
+  insuranceCompany  InsuranceCompany @relation(fields: [insuranceCompanyId], references: [id])
+
+  @@map("insurance_claims")
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+}
+
+// ── Phase 3: Counterfeit Detection ─────────────────────────────────────────
+
+model CounterfeitScan {
+  id           String         @id @default(cuid())
+  medicineName String
+  batchNumber  String?
+  barcode      String?
+  scannedBy    String?
+  scannerType  ScannerType    @default(STAFF)
+  result       ScanResult     @default(UNVERIFIED)
+  notes        String?
+  scannedAt    DateTime       @default(now())
+
+  @@index([batchNumber])
+  @@index([barcode])
+  @@map("counterfeit_scans")
+}
+
+enum ScannerType {
+  STAFF
+  CUSTOMER
+  SYSTEM
+}
+
+enum ScanResult {
+  VERIFIED
+  SUSPICIOUS
+  COUNTERFEIT
+  UNVERIFIED
 }

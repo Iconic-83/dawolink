@@ -28,6 +28,11 @@ import {
   Navigation,
   Star,
   Tag,
+  Sparkles,
+  Globe,
+  Stethoscope,
+  Shield,
+  ScanLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,8 +52,13 @@ const navItems = [
   { href: "/reviews",    label: "Reviews",        icon: Star },
   { href: "/promotions", label: "Promotions",     icon: Tag },
   { href: "/billing",    label: "Billing",        icon: CreditCard },
-  { href: "/audit-logs", label: "Audit Logs",     icon: ClipboardList },
-  { href: "/pharmacy",   label: "Pharmacy",       icon: Building2 },
+  { href: "/audit-logs",   label: "Audit Logs",       icon: ClipboardList },
+  { href: "/pharmacy",     label: "Pharmacy",         icon: Building2 },
+  { href: "/ai",           label: "AI Intelligence",  icon: Sparkles },
+  { href: "/national",     label: "National Intel",   icon: Globe },
+  { href: "/doctor",       label: "Doctor Portal",    icon: Stethoscope },
+  { href: "/insurance",    label: "Insurance",        icon: Shield },
+  { href: "/counterfeit",  label: "Counterfeit",      icon: ScanLine },
 ];
 
 export function Sidebar() {

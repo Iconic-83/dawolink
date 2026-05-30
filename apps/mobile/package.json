@@ -7,7 +7,7 @@
     "expo-router": "~5.0.6",
     "expo-status-bar": "~56.0.4",
     "expo-secure-store": "~14.2.3",
-    "expo-local-authentication": "~15.2.2",
+    "expo-local-authentication": "~56.0.3",
     "expo-constants": "~17.1.6",
     "expo-image": "~2.3.0",
     "@expo/vector-icons": "^14.1.0",

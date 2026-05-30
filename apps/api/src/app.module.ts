@@ -32,6 +32,11 @@ import { PromotionsModule } from "./promotions/promotions.module";
 import { SupplierPortalModule } from "./supplier-portal/supplier-portal.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { StorageModule } from "./common/storage/storage.module";
+import { AiModule } from "./ai/ai.module";
+import { NationalModule } from "./national/national.module";
+import { DoctorModule } from "./doctor/doctor.module";
+import { InsuranceModule } from "./insurance/insurance.module";
+import { CounterfeitModule } from "./counterfeit/counterfeit.module";
 
 @Module({
   controllers: [HealthController],
@@ -67,6 +72,11 @@ import { StorageModule } from "./common/storage/storage.module";
     PaymentsModule,
     MarketplaceModule,
     OrderModule,
+    AiModule,
+    NationalModule,
+    DoctorModule,
+    InsuranceModule,
+    CounterfeitModule,
   ],
 })
 export class AppModule {}

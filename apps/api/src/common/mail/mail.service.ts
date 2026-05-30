@@ -312,4 +312,10 @@ export class MailService implements OnModuleInit {
       `,
     }).catch(err => this.log.error(`Failed to send OTP to ${opts.to}: ${err.message}`));
   }
+
+  async sendEmail(opts: { to: string; subject: string; html: string }) {
+    if (!this.transporter) return;
+    await this.transporter.sendMail({ from: this.from, ...opts })
+      .catch(err => this.log.error(`Failed to send email to ${opts.to}: ${err.message}`));
+  }
 }
