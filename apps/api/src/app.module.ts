@@ -37,6 +37,7 @@ import { NationalModule } from "./national/national.module";
 import { DoctorModule } from "./doctor/doctor.module";
 import { InsuranceModule } from "./insurance/insurance.module";
 import { CounterfeitModule } from "./counterfeit/counterfeit.module";
+import { ReservationModule } from "./reservation/reservation.module";
 
 @Module({
   controllers: [HealthController],
@@ -77,6 +78,7 @@ import { CounterfeitModule } from "./counterfeit/counterfeit.module";
     DoctorModule,
     InsuranceModule,
     CounterfeitModule,
+    ReservationModule,
   ],
 })
 export class AppModule {}

@@ -125,4 +125,46 @@ export class PlatformController {
   reject(@Param("id") id: string, @Body("notes") notes: string) {
     return this.platform.rejectMedicine(id, notes);
   }
+
+  // ── Pharmacy Verification ─────────────────────────────────────────────────
+
+  @Get("pharmacies/pending-verification")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List pharmacies awaiting verification" })
+  pendingPharmacies() {
+    return this.platform.listPendingPharmacies();
+  }
+
+  @Patch("pharmacies/:id/verify")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Approve a pharmacy" })
+  verifyPharmacy(@Param("id") id: string) {
+    return this.platform.verifyPharmacy(id);
+  }
+
+  @Patch("pharmacies/:id/reject-verification")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Reject a pharmacy with reason" })
+  rejectPharmacy(@Param("id") id: string, @Body("note") note: string) {
+    return this.platform.rejectPharmacy(id, note);
+  }
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+
+  @Get("support-tickets")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  listTickets(@Query("status") status?: string) {
+    return this.platform.listSupportTickets(status);
+  }
+
+  @Patch("support-tickets/:id/status")
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  updateTicket(@Param("id") id: string, @Body("status") status: string) {
+    return this.platform.updateTicketStatus(id, status);
+  }
 }

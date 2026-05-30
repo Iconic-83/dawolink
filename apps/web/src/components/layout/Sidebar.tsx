@@ -33,6 +33,7 @@ import {
   Stethoscope,
   Shield,
   ScanLine,
+  BookmarkCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +60,7 @@ const navItems = [
   { href: "/doctor",       label: "Doctor Portal",    icon: Stethoscope },
   { href: "/insurance",    label: "Insurance",        icon: Shield },
   { href: "/counterfeit",  label: "Counterfeit",      icon: ScanLine },
+  { href: "/reservations", label: "Reservations",     icon: BookmarkCheck },
 ];
 
 export function Sidebar() {

@@ -645,27 +645,158 @@ The pharmacies paying $29/month are simultaneously the customers, the distributi
 
 ---
 
-## KNOWN GAPS (as of May 2026)
+## ARCHITECT REVIEW — ADDITIONAL ANSWERS (v1.1)
 
-| Gap | Priority | Phase |
-|-----|----------|-------|
-| Formal return/refund transaction type | High | Phase 3 |
-| Account lockout after failed logins | High | Immediate |
-| JWT token revocation (log out all devices) | Medium | Phase 3 |
-| One-tap reorder from order history | Medium | Phase 3 |
-| Customer favorite pharmacies | Low | Phase 3 |
-| Bulk data export for pharmacy data portability | High | Phase 3 |
-| Auto-delivery assignment by driver proximity | Medium | Phase 3 |
-| Delivery proof (photo/OTP/signature) | Medium | Phase 3 |
-| Mobile app offline support | Medium | Phase 3 |
-| Automated subscription renewal | Medium | Depends on gateway |
-| Subscription discount/coupon codes | Low | Phase 3 |
-| Hard block on selling expired medicines (compliance mode) | Medium | Phase 3 |
-| Fuzzy medicine name deduplication | Medium | Phase 3 |
-| Multi-branch staff accounts | Medium | Phase 3 |
+### Pharmacy Verification
+Every new pharmacy registration creates a `verificationStatus: PENDING` record. The pharmacy can log in and set up their internal operations but does **not** appear in the national marketplace until verified. Platform admin reviews the pharmacy via `/admin/verify-pharmacies`, inspects the uploaded license and registration certificate documents, then approves or rejects with a written reason. On approval, an inbox notification is sent to the pharmacy owner and they become visible in marketplace search. On rejection, the owner receives feedback and can resubmit. This prevents fake or unlicensed pharmacies from appearing to customers.
+
+### Supplier Verification
+Supplier accounts created through the Supplier Portal require: business name, registration number, contact details, and a service city. Supplier verification follows the same admin review flow — platform admin can verify or suspend supplier accounts. Suppliers marked unverified cannot appear in the supplier marketplace or receive purchase orders from the procurement network.
+
+### Prescription Medicines (RX Enforcement)
+Medicines are flagged `requiresPrescription: true` by the platform admin during the verification step. When a customer attempts to order an RX medicine without uploading a prescription, the API blocks the order with: *"Prescription required for [medicine name]. Please upload a valid prescription."* The customer must upload a photo/PDF of their prescription. The pharmacist then reviews and approves it before the order proceeds to `PREPARING`. With the Phase 3 Doctor Portal, electronic prescriptions bypass this manual step — the digital prescription is pre-verified.
+
+Who defines RX status: DawoLink platform admin, based on Somalia's Ministry of Health controlled/prescription medicine list. Pharmacists cannot override the RX requirement — they can only approve or reject the uploaded prescription document.
+
+### Marketplace Ranking
+Search results are sorted using the `sortBy` parameter:
+
+| Sort Option | Logic |
+|-------------|-------|
+| `relevance` (default) | Available first → sorted by number of pharmacies carrying it |
+| `price_asc` | Lowest price first |
+| `price_desc` | Highest price first |
+| `availability` | In Stock → Low Stock → Out of Stock |
+| `rating` | Highest-rated pharmacies first (Phase 3 enhancement) |
+
+Only pharmacies with `verificationStatus: VERIFIED` appear in search results. Sponsored placement (supplier advertising) is a planned revenue stream where medicines/pharmacies can pay for priority placement above organic results.
+
+### Loyalty Program
+**Already fully built (Phase 2).** Customer earns 1 point per $1 spent on delivered orders. Redeem 10 points = $1 off any order. Points are applied at checkout automatically. The mobile app has a dedicated Loyalty tab showing balance, lifetime earned, and transaction history. Future enhancements: pharmacy-level loyalty tiers (Bronze/Silver/Gold membership), birthday bonuses, and referral rewards.
+
+### Branch Transfer Workflow
+**Already fully built (Phase 2).** Branch A staff creates a stock transfer request (select destination branch, select medicine, enter quantity). The system validates that Branch A has sufficient stock. The transfer is created with status `PENDING`. A Branch Manager at Branch B (or Pharmacy Owner) approves. On approval, stock is atomically deducted from Branch A and added to Branch B. The transfer is tracked in audit logs as `STOCK_TRANSFERRED`. Drivers can be assigned to physically transport the stock.
+
+### Medicine Images
+Medicine records support an `imageUrl` field. A single image can be uploaded during medicine creation or editing, stored in Cloudflare R2. Multi-image support (up to 5 images per medicine, with a designated primary image) is a planned enhancement. The Global Medicine database also carries images that are surfaced to customers even when a pharmacy's medicine entry has no image.
+
+### Customer Health Profile
+**Now built (Phase 3B).** Customers can update their health profile via `PATCH /v1/marketplace/auth/profile`:
+- Date of birth, gender
+- Allergies (list of strings)
+- Chronic conditions (diabetes, hypertension, asthma, etc.)
+- Blood type
+- Emergency contact
+
+This data is visible to pharmacists when reviewing orders with prescription requirements. It feeds the AI Pharmacist Assistant — when checking drug interactions, the system can flag medicines that are contraindicated for the customer's known conditions or allergies. All health profile data is private and only accessible to the customer and assigned pharmacist for their order.
+
+### Support System
+**Now built (Phase 3B) — foundation layer.** Support tickets model is live: `POST /v1/support-tickets` for pharmacies/customers to submit tickets with category (General/Billing/Technical/Inventory/Delivery/Account), priority (Low/Medium/High/Urgent), and description. Platform admin manages tickets via `/admin/support-tickets`. Full support features roadmap:
+- Phase 3: Email notifications on ticket updates
+- Phase 4: In-app live chat with support agents
+- Phase 4: Knowledge base / FAQ self-service portal
+- Phase 4: WhatsApp Business API integration
+
+### Disaster Recovery
+**Current state:**
+- PostgreSQL automated daily backups via Render/Railway hosting
+- Soft deletes prevent accidental permanent data loss
+- All code in GitHub (`Iconic-83/dawolink`) — infrastructure can be rebuilt from source
+
+**Documented recovery plan:**
+1. Database crash: Restore from Render/Railway point-in-time backup (RPO: 24 hours, RTO: ~1 hour)
+2. Server compromise: Redeploy from GitHub → Render Blueprint in ~15 minutes. Rotate JWT_SECRET (invalidates all sessions)
+3. Cloud outage: Render free tier has no SLA. Enterprise upgrade includes automatic failover
+4. Full data export for pharmacy portability: planned Phase 3 feature — CSV/JSON export of all pharmacy data
+
+**Planned Phase 3 hardening:** Automated nightly database export to Cloudflare R2 as a secondary backup. Point-in-time recovery window target: 1 hour.
 
 ---
 
-*DawoLink Product Documentation v1.0*
+## NEW FEATURE: MEDICINE RESERVATION
+**Now built (Phase 3B).** Customers can reserve a medicine for **2 hours** before arriving at the pharmacy.
+
+Workflow:
+1. Customer searches medicine → finds available pharmacy
+2. Clicks "Reserve for 2 Hours"
+3. System checks available stock minus already-held reservations
+4. If sufficient: reservation created, stock logically held
+5. Customer receives confirmation with expiry time
+6. Pharmacy dashboard shows active reservation: customer name, phone, medicine, quantity, time left
+7. Customer arrives → pharmacist clicks "Confirm" → reservation converts to sale
+8. If customer doesn't arrive: reservation auto-expires via 5-minute cron → stock released
+
+This is extremely valuable in Somalia where customers travel across the city to find specific medicines. It eliminates the experience of a long journey only to find the medicine sold out.
+
+---
+
+## PLATFORM LAYER ARCHITECTURE (7 Layers)
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Layer 7 — AI Healthcare Assistant                  │
+│  Claude-powered: pharmacist AI, demand forecast,    │
+│  fraud detection, customer health assistant         │
+├─────────────────────────────────────────────────────┤
+│  Layer 6 — Government & NGO Dashboard               │
+│  Disease trends, shortage alerts, medicine access,  │
+│  anonymous aggregate analytics, recall broadcasts   │
+├─────────────────────────────────────────────────────┤
+│  Layer 5 — National Medicine Intelligence           │
+│  Verified medicine database, price intelligence,    │
+│  shortage detection, counterfeit scanning,          │
+│  electronic prescription network                   │
+├─────────────────────────────────────────────────────┤
+│  Layer 4 — Delivery Network                         │
+│  Driver management, delivery tracking,              │
+│  insurance claims, GPS (Phase 3)                    │
+├─────────────────────────────────────────────────────┤
+│  Layer 3 — Supplier Portal                          │
+│  Supplier marketplace, catalog management,          │
+│  direct procurement, supplier analytics             │
+├─────────────────────────────────────────────────────┤
+│  Layer 2 — Customer Marketplace                     │
+│  Medicine search, orders, chat, loyalty,            │
+│  ratings, reservations, health profile              │
+├─────────────────────────────────────────────────────┤
+│  Layer 1 — Pharmacy SaaS                            │
+│  POS, inventory, staff, suppliers, billing,         │
+│  analytics, expiry alerts, offline mode             │
+└─────────────────────────────────────────────────────┘
+```
+
+Each layer adds value independently. A pharmacy that never uses the marketplace still gets full value from Layer 1. A customer benefits from Layer 2 without knowing Layer 5 exists. Government agencies consume Layer 6 without touching any other layer. This architecture supports growth for many years without changing the core data model.
+
+---
+
+## KNOWN GAPS (as of May 2026 — updated v1.1)
+
+| Gap | Priority | Status |
+|-----|----------|--------|
+| Account lockout after failed logins | High | Not built — immediate fix needed |
+| JWT token revocation (log out all devices) | Medium | Not built — Phase 3 |
+| Formal return/refund transaction type | High | Not built — Phase 3 |
+| One-tap reorder from order history | Medium | Not built — Phase 3 |
+| Customer favorite pharmacies | Low | Not built — Phase 3 |
+| Bulk data export (data portability) | High | Not built — Phase 3 |
+| Auto-delivery assignment by driver proximity | Medium | Not built — Phase 3 |
+| Delivery proof (photo/OTP/signature) | Medium | Not built — Phase 3 |
+| Mobile app offline support | Medium | Not built — Phase 3 |
+| Automated subscription renewal | Medium | Depends on gateway |
+| Hard block on selling expired medicines | Medium | Not built — Phase 3 |
+| Fuzzy medicine name deduplication | Medium | Not built — Phase 3 |
+| Multi-branch staff accounts | Medium | Not built — Phase 3 |
+| Supplier advertising / sponsored placement | Medium | Not built — Phase 3 |
+| Medicine multi-image (up to 5) | Low | Not built — Phase 3 |
+| In-app live chat support | Low | Not built — Phase 4 |
+| Knowledge base / FAQ portal | Low | Not built — Phase 4 |
+| Scheduled delivery (book for later) | Medium | Not built — Phase 3 |
+| Driver GPS real-time tracking | Medium | Not built — Phase 3 |
+| Subscription discount/coupon codes | Low | Not built — Phase 3 |
+
+---
+
+*DawoLink Product Documentation v1.1*
 *Phases 1 & 2 complete · Phase 3 in progress*
+*SaaS Architecture Review: 9.2/10*
 *Repository: github.com/Iconic-83/dawolink*

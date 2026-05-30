@@ -43,6 +43,24 @@ export class MarketplaceController {
     return safe;
   }
 
+  @Patch("auth/profile")
+  @UseGuards(JwtAuthGuard, CustomerGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Update customer health profile" })
+  updateProfile(@Req() req: any, @Body() dto: {
+    name?: string;
+    address?: string;
+    city?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    allergies?: string[];
+    chronicConditions?: string[];
+    bloodType?: string;
+    emergencyContact?: string;
+  }) {
+    return this.service.updateCustomerProfile(req.user.id, dto);
+  }
+
   // ── Push Notifications ────────────────────────────────────────────────────
 
   @Get("push/vapid-public-key")
@@ -80,12 +98,14 @@ export class MarketplaceController {
   @ApiQuery({ name: "q", required: false })
   @ApiQuery({ name: "page", required: false })
   @ApiQuery({ name: "limit", required: false })
+  @ApiQuery({ name: "sortBy", required: false, enum: ["relevance", "price_asc", "price_desc", "rating", "availability"] })
   search(
     @Query("q") q = "",
     @Query("page") page = "1",
     @Query("limit") limit = "20",
+    @Query("sortBy") sortBy: "relevance" | "price_asc" | "price_desc" | "rating" | "availability" = "relevance",
   ) {
-    return this.service.searchMedicines(q, +page, Math.min(+limit, 50));
+    return this.service.searchMedicines(q, +page, Math.min(+limit, 50), sortBy);
   }
 
   @Get("medicines/:id")

@@ -229,6 +229,60 @@ export class PlatformService {
     return this.prisma.medicine.count({ where: { verificationStatus: "PENDING_VERIFICATION" } });
   }
 
+  // ── Pharmacy Verification ─────────────────────────────────────────────────
+  async listPendingPharmacies() {
+    return this.prisma.pharmacy.findMany({
+      where: { verificationStatus: "PENDING" },
+      select: {
+        id: true, name: true, city: true, phone: true, email: true,
+        licenseNo: true, licenseUrl: true, registrationCertUrl: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async verifyPharmacy(id: string) {
+    const pharmacy = await this.prisma.pharmacy.update({
+      where: { id },
+      data: { verificationStatus: "VERIFIED", verifiedAt: new Date(), verificationNote: null },
+    });
+    this.inbox.push(id, "SYSTEM", "Pharmacy Verified ✓",
+      "Your pharmacy has been verified by DawoLink. You are now visible in the national marketplace.",
+      "/pharmacy");
+    return pharmacy;
+  }
+
+  async rejectPharmacy(id: string, note: string) {
+    const pharmacy = await this.prisma.pharmacy.update({
+      where: { id },
+      data: { verificationStatus: "REJECTED", verificationNote: note },
+    });
+    this.inbox.push(id, "SYSTEM", "Pharmacy Verification Rejected",
+      `Reason: ${note}. Please update your details and resubmit.`,
+      "/pharmacy");
+    return pharmacy;
+  }
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+  async listSupportTickets(status?: string) {
+    return this.prisma.supportTicket.findMany({
+      where: status ? { status: status as any } : undefined,
+      include: { pharmacy: { select: { name: true, city: true } } },
+      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+    });
+  }
+
+  async updateTicketStatus(id: string, status: string) {
+    return this.prisma.supportTicket.update({
+      where: { id },
+      data: {
+        status: status as any,
+        resolvedAt: status === "RESOLVED" || status === "CLOSED" ? new Date() : undefined,
+      },
+    });
+  }
+
   private signAdminToken(adminId: string) {
     return this.jwt.sign({ sub: adminId, actorType: "platform_admin" });
   }

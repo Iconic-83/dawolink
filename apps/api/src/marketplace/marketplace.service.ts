@@ -66,7 +66,7 @@ export class MarketplaceService {
 
   // ── Public medicine search & detail ───────────────────────────────────────
 
-  async searchMedicines(q: string, page = 1, limit = 20) {
+  async searchMedicines(q: string, page = 1, limit = 20, sortBy: "relevance" | "price_asc" | "price_desc" | "rating" | "availability" = "relevance") {
     const nameFilter = q.trim()
       ? {
           OR: [
@@ -80,8 +80,8 @@ export class MarketplaceService {
       where: {
         isActive: true,
         verificationStatus: "VERIFIED",
-        pharmacy: { isActive: true },
-        inventory: { some: { branch: { isActive: true, pharmacy: { isActive: true } } } },
+        pharmacy: { isActive: true, verificationStatus: "VERIFIED" },
+        inventory: { some: { branch: { isActive: true, pharmacy: { isActive: true, verificationStatus: "VERIFIED" } } } },
         ...nameFilter,
       },
       select: {
@@ -149,9 +149,24 @@ export class MarketplaceService {
       availability: g.hasGoodStock ? "available" : g.hasLowStock ? "low_stock" : "out_of_stock",
     }));
 
-    const total = all.length;
-    const results = all.slice((page - 1) * limit, page * limit);
-    return { results, total, page, limit };
+    // Apply ranking/sorting
+    const sorted = all.sort((a, b) => {
+      if (sortBy === "price_asc")  return a.lowestPrice - b.lowestPrice;
+      if (sortBy === "price_desc") return b.lowestPrice - a.lowestPrice;
+      if (sortBy === "availability") {
+        const rank = { available: 0, low_stock: 1, out_of_stock: 2 };
+        return (rank[a.availability as keyof typeof rank] ?? 2) - (rank[b.availability as keyof typeof rank] ?? 2);
+      }
+      // Default relevance: available first, then by pharmacy count (wider distribution)
+      const rankA = a.availability === "available" ? 0 : a.availability === "low_stock" ? 1 : 2;
+      const rankB = b.availability === "available" ? 0 : b.availability === "low_stock" ? 1 : 2;
+      if (rankA !== rankB) return rankA - rankB;
+      return b.pharmacyCount - a.pharmacyCount;
+    });
+
+    const total = sorted.length;
+    const results = sorted.slice((page - 1) * limit, page * limit);
+    return { results, total, page, limit, sortBy };
   }
 
   async getMedicineDetail(id: string) {
@@ -268,9 +283,29 @@ export class MarketplaceService {
   async createOrder(appUserId: string, dto: CreateOrderDto) {
     const pharmacy = await this.prisma.pharmacy.findUnique({
       where: { id: dto.pharmacyId },
-      select: { id: true, isActive: true, name: true, email: true },
+      select: { id: true, isActive: true, name: true, email: true, verificationStatus: true },
     });
     if (!pharmacy || !pharmacy.isActive) throw new NotFoundException("Pharmacy not found");
+    if (pharmacy.verificationStatus !== "VERIFIED") {
+      throw new BadRequestException("This pharmacy is not yet verified by DawoLink");
+    }
+
+    // RX enforcement: check if any ordered medicine requires a prescription
+    if (dto.items?.length) {
+      const rxMedicines = await this.prisma.medicine.findMany({
+        where: {
+          name: { in: dto.items.map(i => i.medicineName) },
+          requiresPrescription: true,
+          pharmacyId: dto.pharmacyId,
+        },
+        select: { name: true },
+      });
+      if (rxMedicines.length > 0 && !dto.prescriptionUrl) {
+        throw new BadRequestException(
+          `Prescription required for: ${rxMedicines.map(m => m.name).join(", ")}. Please upload a valid prescription.`,
+        );
+      }
+    }
 
     const subtotal = dto.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
     const deliveryFee = dto.deliveryType === "DELIVERY" ? 2.0 : 0;
@@ -372,6 +407,30 @@ export class MarketplaceService {
     }
 
     return order;
+  }
+
+  async updateCustomerProfile(appUserId: string, dto: {
+    name?: string; address?: string; city?: string;
+    dateOfBirth?: string; gender?: string;
+    allergies?: string[]; chronicConditions?: string[];
+    bloodType?: string; emergencyContact?: string;
+  }) {
+    const updated = await this.prisma.appUser.update({
+      where: { id: appUserId },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.address !== undefined && { address: dto.address }),
+        ...(dto.city !== undefined && { city: dto.city }),
+        ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
+        ...(dto.gender !== undefined && { gender: dto.gender }),
+        ...(dto.allergies !== undefined && { allergies: dto.allergies }),
+        ...(dto.chronicConditions !== undefined && { chronicConditions: dto.chronicConditions }),
+        ...(dto.bloodType !== undefined && { bloodType: dto.bloodType }),
+        ...(dto.emergencyContact !== undefined && { emergencyContact: dto.emergencyContact }),
+      },
+    });
+    const { passwordHash: _, ...safe } = updated;
+    return safe;
   }
 
   async getMyOrders(appUserId: string) {
