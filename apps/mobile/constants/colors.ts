@@ -1,0 +1,17 @@
+export const Colors = {
+  primary:   "#180D62",
+  secondary: "#2D1B8E",
+  accent:    "#00C897",
+  accentDark:"#009E78",
+  white:     "#FFFFFF",
+  gray50:    "#F9FAFB",
+  gray100:   "#F3F4F6",
+  gray200:   "#E5E7EB",
+  gray400:   "#9CA3AF",
+  gray600:   "#4B5563",
+  gray900:   "#111827",
+  red:       "#EF4444",
+  amber:     "#F59E0B",
+  green:     "#10B981",
+  blue:      "#3B82F6",
+};
