@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { customerApi, useCustomerAuth } from "@/lib/customer-auth";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 
 const STATUS_STEPS = [
   { key: "PENDING",          label: "Pending",           icon: "⏳" },
@@ -84,6 +85,7 @@ export default function OrderDetailPage() {
             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#9B9BC0" }}>Order number</p>
             <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#180D62" }}>{order.orderNo}</p>
           </div>
+          <ChatPanel orderId={order.id} orderNo={order.orderNo} myType="CUSTOMER" />
           {isCancelled ? (
             <span style={{ background: "#FEE2E2", color: "#DC2626", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 700 }}>Cancelled</span>
           ) : (

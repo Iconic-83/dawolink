@@ -181,6 +181,8 @@ model Pharmacy {
   medicineOrders MedicineOrder[]
   settings              PharmacySettings?
   inboxNotifications    InboxNotification[]
+  reviews               PharmacyReview[]
+  promotions            Promotion[]
 
   @@map("pharmacies")
 }
@@ -414,6 +416,8 @@ model AppUser {
 
   orders            MedicineOrder[]
   pushSubscriptions AppPushSubscription[]
+  reviews           PharmacyReview[]
+  loyaltyAccount    LoyaltyAccount?
 
   @@map("app_users")
 }
@@ -576,6 +580,127 @@ model TransferItem {
   transfer       StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
   @@map("transfer_items")
+}
+
+// ─────────────────────────────────────────────
+// RATINGS & REVIEWS
+// ─────────────────────────────────────────────
+
+model PharmacyReview {
+  id         String   @id @default(cuid())
+  appUserId  String
+  pharmacyId String
+  orderId    String   @unique
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  appUser    AppUser  @relation(fields: [appUserId], references: [id])
+  pharmacy   Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+  @@map("pharmacy_reviews")
+}
+
+// ─────────────────────────────────────────────
+// LOYALTY
+// ─────────────────────────────────────────────
+
+model LoyaltyAccount {
+  id            String             @id @default(cuid())
+  appUserId     String             @unique
+  points        Int                @default(0)
+  lifetimeEarned Int               @default(0)
+  updatedAt     DateTime           @updatedAt
+
+  appUser       AppUser            @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+  transactions  LoyaltyTransaction[]
+
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id        String   @id @default(cuid())
+  accountId String
+  type      LoyaltyTxType
+  points    Int
+  orderId   String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  account   LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_transactions")
+}
+
+enum LoyaltyTxType {
+  EARNED
+  REDEEMED
+  ADJUSTED
+}
+
+// ─────────────────────────────────────────────
+// PROMOTIONS
+// ─────────────────────────────────────────────
+
+model Promotion {
+  id          String        @id @default(cuid())
+  pharmacyId  String
+  code        String
+  description String?
+  type        PromoType
+  value       Decimal       @db.Decimal(10, 2)
+  minOrder    Decimal       @default(0) @db.Decimal(10, 2)
+  usageLimit  Int?
+  usedCount   Int           @default(0)
+  isActive    Boolean       @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  pharmacy    Pharmacy      @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([pharmacyId, code])
+  @@map("promotions")
+}
+
+enum PromoType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+// ─────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────
+
+model ChatRoom {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  createdAt DateTime      @default(now())
+
+  messages  ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+model ChatMessage {
+  id         String      @id @default(cuid())
+  roomId     String
+  senderId   String
+  senderType SenderType
+  content    String?
+  imageUrl   String?
+  readAt     DateTime?
+  createdAt  DateTime    @default(now())
+
+  room       ChatRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
+
+enum SenderType {
+  CUSTOMER
+  PHARMACY
 }
 
 // ─────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { toast } from "sonner";
 import {
   ShoppingBag, Clock, CheckCircle2, Loader2, XCircle,
@@ -221,7 +222,10 @@ function OrderDetailModal({ order: initialOrder, onClose, onStatusChange }: {
           <Badge variant={meta.variant} className="gap-1 py-1 px-2.5 text-xs">
             {meta.icon} {meta.label}
           </Badge>
-          <span className="text-xs text-gray-400">{formatDate(order.createdAt)}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">{formatDate(order.createdAt)}</span>
+            <ChatPanel orderId={order.id} orderNo={order.orderNo} myType="PHARMACY" />
+          </div>
         </div>
 
         {meta.next.length > 0 && (
