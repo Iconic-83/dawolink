@@ -15,6 +15,7 @@ import { UpdateBranchDto } from "./dto/update-branch.dto";
 import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
 import { CreateInviteDto } from "./dto/create-invite.dto";
+import { UpdatePharmacySettingsDto } from "./dto/update-pharmacy-settings.dto";
 
 const LOGO_DIR = join(process.cwd(), "uploads", "logos");
 
@@ -99,6 +100,18 @@ export class PharmacyController {
   @Patch("staff/:id/reactivate")
   reactivateStaff(@Req() req: any, @Param("id") id: string) {
     return this.pharmacy.reactivateStaff(req.user.pharmacyId, req.user.id, id);
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  @Get("settings")
+  getSettings(@Req() req: any) {
+    return this.pharmacy.getSettings(req.user.pharmacyId);
+  }
+
+  @Patch("settings")
+  updateSettings(@Req() req: any, @Body() dto: UpdatePharmacySettingsDto) {
+    return this.pharmacy.updateSettings(req.user.pharmacyId, req.user.id, dto);
   }
 
   // ── Staff invites ──────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Building2, MapPin, Phone, Mail, FileText, Globe,
   Camera, Edit2, Plus, Trash2, Loader2, Save,
-  CheckCircle2, AlertTriangle, Star, ChevronRight,
+  CheckCircle2, AlertTriangle, Star, ChevronRight, Settings2,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, "") ?? "http://localhost:4000";
@@ -27,7 +27,7 @@ const SOMALI_CITIES = [
   "Garowe","Beledweyne","Marka","Jilib","Gaalkacyo",
 ];
 
-type Tab = "profile" | "branches" | "danger";
+type Tab = "profile" | "branches" | "settings" | "danger";
 
 // ── Reusable field ─────────────────────────────────────────────────────────
 
@@ -399,6 +399,209 @@ function BranchesTab({ pharmacy }: { pharmacy: any }) {
   );
 }
 
+// ── Settings tab ──────────────────────────────────────────────────────────
+
+const CURRENCIES = [
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "SOS", label: "SOS — Somali Shilling" },
+  { value: "ETB", label: "ETB — Ethiopian Birr" },
+  { value: "KES", label: "KES — Kenyan Shilling" },
+];
+
+const TIMEZONES = [
+  { value: "Africa/Mogadishu", label: "Africa/Mogadishu (EAT, UTC+3)" },
+  { value: "Africa/Nairobi",   label: "Africa/Nairobi (EAT, UTC+3)" },
+  { value: "Africa/Addis_Ababa", label: "Africa/Addis_Ababa (EAT, UTC+3)" },
+  { value: "UTC",              label: "UTC" },
+];
+
+function SettingsTab() {
+  const qc = useQueryClient();
+
+  const { data: settings, isLoading } = useQuery<any>({
+    queryKey: ["pharmacy-settings"],
+    queryFn: () => api.get("/v1/pharmacy/settings").then(r => r.data),
+  });
+
+  const [form, setForm] = useState<any>(null);
+  const [dirty, setDirty] = useState(false);
+
+  // Sync form when settings load
+  if (settings && !form) {
+    setForm({
+      currency:            settings.currency            ?? "USD",
+      timezone:            settings.timezone            ?? "Africa/Mogadishu",
+      taxEnabled:          settings.taxEnabled          ?? false,
+      taxRate:             settings.taxRate             ?? 0,
+      taxLabel:            settings.taxLabel            ?? "VAT",
+      invoicePrefix:       settings.invoicePrefix       ?? "INV",
+      invoiceFooter:       settings.invoiceFooter       ?? "",
+      defaultReorderLevel: settings.defaultReorderLevel ?? 10,
+      expiryWarningDays:   settings.expiryWarningDays   ?? 30,
+    });
+  }
+
+  function set(k: string, v: any) { setForm((f: any) => ({ ...f, [k]: v })); setDirty(true); }
+
+  const { mutate: save, isPending } = useMutation({
+    mutationFn: () => api.patch("/v1/pharmacy/settings", form).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pharmacy-settings"] });
+      toast.success("Settings saved");
+      setDirty(false);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Failed to save"),
+  });
+
+  if (isLoading || !form) {
+    return <div className="flex items-center justify-center h-32 text-gray-400"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…</div>;
+  }
+
+  const inp = "w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple appearance-none";
+
+  return (
+    <div className="space-y-6">
+
+      {/* Currency & Timezone */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <h2 className="text-base font-semibold text-gray-900">Regional Settings</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Currency</label>
+            <select value={form.currency} onChange={e => set("currency", e.target.value)} className={inp}>
+              {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Timezone</label>
+            <select value={form.timezone} onChange={e => set("timezone", e.target.value)} className={inp}>
+              {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Tax Settings */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">Tax Settings</h2>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div
+              onClick={() => set("taxEnabled", !form.taxEnabled)}
+              className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${form.taxEnabled ? "bg-brand-teal" : "bg-gray-200"}`}
+              style={form.taxEnabled ? { background: "#00C897" } : undefined}
+            >
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.taxEnabled ? "translate-x-5" : "translate-x-1"}`} />
+            </div>
+            <span className="text-sm text-gray-600">{form.taxEnabled ? "Enabled" : "Disabled"}</span>
+          </label>
+        </div>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${form.taxEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Tax Rate (%)</label>
+            <input
+              type="number" min={0} max={100} step={0.5}
+              value={form.taxRate}
+              onChange={e => set("taxRate", parseFloat(e.target.value) || 0)}
+              className={inp}
+              placeholder="e.g. 15"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Tax Label</label>
+            <input
+              type="text"
+              value={form.taxLabel}
+              onChange={e => set("taxLabel", e.target.value)}
+              className={inp}
+              placeholder="e.g. VAT, GST, Sales Tax"
+            />
+          </div>
+        </div>
+        {!form.taxEnabled && (
+          <p className="text-xs text-gray-400">Enable tax to configure rate and label. Tax will be applied at POS checkout.</p>
+        )}
+      </div>
+
+      {/* Invoice Settings */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <h2 className="text-base font-semibold text-gray-900">Invoice Settings</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Invoice Prefix</label>
+            <input
+              type="text"
+              value={form.invoicePrefix}
+              onChange={e => set("invoicePrefix", e.target.value.toUpperCase())}
+              className={inp}
+              placeholder="e.g. INV, REC, DAWO"
+              maxLength={8}
+            />
+            <p className="text-xs text-gray-400 mt-1">Invoices will be numbered: {form.invoicePrefix}-0001, {form.invoicePrefix}-0002…</p>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Invoice Footer Note</label>
+          <textarea
+            value={form.invoiceFooter}
+            onChange={e => set("invoiceFooter", e.target.value)}
+            rows={2}
+            className={`${inp} resize-none`}
+            placeholder="e.g. Thank you for your purchase. All sales are final."
+          />
+        </div>
+      </div>
+
+      {/* Operational Thresholds */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <h2 className="text-base font-semibold text-gray-900">Operational Thresholds</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Default Reorder Level</label>
+            <input
+              type="number" min={0}
+              value={form.defaultReorderLevel}
+              onChange={e => set("defaultReorderLevel", parseInt(e.target.value) || 0)}
+              className={inp}
+              placeholder="10"
+            />
+            <p className="text-xs text-gray-400 mt-1">Applied to new inventory items when no custom reorder level is set.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Expiry Warning (days)</label>
+            <input
+              type="number" min={1} max={365}
+              value={form.expiryWarningDays}
+              onChange={e => set("expiryWarningDays", parseInt(e.target.value) || 30)}
+              className={inp}
+              placeholder="30"
+            />
+            <p className="text-xs text-gray-400 mt-1">Items expiring within this many days will be flagged as warnings.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Save bar */}
+      <div className={`sticky bottom-4 flex justify-end transition-all ${dirty ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-5 py-3 flex items-center gap-4">
+          <p className="text-sm text-gray-500">You have unsaved changes</p>
+          <button
+            onClick={() => save()}
+            disabled={isPending}
+            className="flex items-center gap-2 px-5 py-2 text-white rounded-xl text-sm font-semibold transition disabled:opacity-60"
+            style={{ background: "linear-gradient(90deg, #00C897, #009E78)" }}
+          >
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Danger zone tab ────────────────────────────────────────────────────────
 
 function DangerTab({ pharmacy }: { pharmacy: any }) {
@@ -475,7 +678,8 @@ export default function PharmacyPage() {
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "profile",   label: "Profile",   icon: <Building2 className="h-4 w-4" /> },
     { key: "branches",  label: "Branches",  icon: <MapPin className="h-4 w-4" /> },
-    { key: "danger",    label: "Settings",  icon: <FileText className="h-4 w-4" /> },
+    { key: "settings",  label: "Settings",  icon: <Settings2 className="h-4 w-4" /> },
+    { key: "danger",    label: "Danger Zone", icon: <AlertTriangle className="h-4 w-4" /> },
   ];
 
   if (isLoading) {
@@ -532,9 +736,10 @@ export default function PharmacyPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "profile"  && <ProfileTab  pharmacy={pharmacy} />}
-      {tab === "branches" && <BranchesTab pharmacy={pharmacy} />}
-      {tab === "danger"   && <DangerTab   pharmacy={pharmacy} />}
+      {tab === "profile"   && <ProfileTab  pharmacy={pharmacy} />}
+      {tab === "branches"  && <BranchesTab pharmacy={pharmacy} />}
+      {tab === "settings"  && <SettingsTab />}
+      {tab === "danger"    && <DangerTab   pharmacy={pharmacy} />}
     </div>
   );
 }

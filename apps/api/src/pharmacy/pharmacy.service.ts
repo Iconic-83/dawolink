@@ -6,6 +6,7 @@ import { CreatePharmacyDto } from "./dto/create-pharmacy.dto";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
 import { UpdatePharmacyDto } from "./dto/update-pharmacy.dto";
+import { UpdatePharmacySettingsDto } from "./dto/update-pharmacy-settings.dto";
 import { CreateInviteDto } from "./dto/create-invite.dto";
 import { MailService } from "../common/mail/mail.service";
 import { UpdateStaffDto } from "./dto/update-staff.dto";
@@ -265,5 +266,34 @@ export class PharmacyService {
     if (invite.acceptedAt) throw new ConflictException("This invitation has already been used");
     if (invite.expiresAt < new Date()) throw new ConflictException("This invitation has expired");
     return invite;
+  }
+
+  // ── Pharmacy Settings ──────────────────────────────────────────────────────
+
+  async getSettings(pharmacyId: string) {
+    const settings = await this.prisma.pharmacySettings.findUnique({ where: { pharmacyId } });
+    if (settings) return settings;
+    return this.prisma.pharmacySettings.create({ data: { pharmacyId } });
+  }
+
+  async updateSettings(pharmacyId: string, actorId: string, dto: UpdatePharmacySettingsDto) {
+    const old = await this.getSettings(pharmacyId);
+    const settings = await this.prisma.pharmacySettings.upsert({
+      where: { pharmacyId },
+      update: dto,
+      create: { pharmacyId, ...dto },
+    });
+
+    this.audit.log({
+      pharmacyId,
+      userId: actorId,
+      action: "SETTINGS_UPDATED",
+      entity: "PharmacySettings",
+      entityId: settings.id,
+      oldValue: old as any,
+      newValue: settings as any,
+    });
+
+    return settings;
   }
 }

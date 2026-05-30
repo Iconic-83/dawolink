@@ -179,8 +179,28 @@ model Pharmacy {
   customRoles    CustomRole[]
   subscription   Subscription?
   medicineOrders MedicineOrder[]
+  settings       PharmacySettings?
 
   @@map("pharmacies")
+}
+
+model PharmacySettings {
+  id                  String   @id @default(cuid())
+  pharmacyId          String   @unique
+  currency            String   @default("USD")
+  timezone            String   @default("Africa/Mogadishu")
+  taxEnabled          Boolean  @default(false)
+  taxRate             Float    @default(0)
+  taxLabel            String   @default("VAT")
+  invoicePrefix       String   @default("INV")
+  invoiceFooter       String   @default("")
+  defaultReorderLevel Int      @default(10)
+  expiryWarningDays   Int      @default(30)
+  updatedAt           DateTime @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@map("pharmacy_settings")
 }
 
 model Branch {

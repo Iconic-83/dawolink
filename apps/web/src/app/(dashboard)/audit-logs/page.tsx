@@ -11,7 +11,7 @@ const ACTION_OPTIONS = [
   "", "LOGIN", "SIGNUP", "SALE", "STOCK_ADDED", "STOCK_ADJUSTED", "STOCK_TRANSFERRED",
   "SUPPLIER_CREATED", "PURCHASE_ORDER_CREATED", "PO_RECEIVED", "PO_STATUS_UPDATED", "PAYMENT_RECORDED",
   "STAFF_UPDATED", "STAFF_DEACTIVATED", "STAFF_REACTIVATED", "STAFF_INVITED", "INVITE_REVOKED",
-  "BRANCH_CREATED", "BRANCH_UPDATED", "BRANCH_DEACTIVATED", "PHARMACY_UPDATED",
+  "BRANCH_CREATED", "BRANCH_UPDATED", "BRANCH_DEACTIVATED", "PHARMACY_UPDATED", "SETTINGS_UPDATED",
 ];
 
 const ACTION_META: Record<string, { label: string; variant: "success" | "info" | "warning" | "danger" | "default" | "muted" }> = {
@@ -34,6 +34,7 @@ const ACTION_META: Record<string, { label: string; variant: "success" | "info" |
   BRANCH_UPDATED:         { label: "Branch Updated",    variant: "info" },
   BRANCH_DEACTIVATED:     { label: "Branch Disabled",   variant: "danger" },
   PHARMACY_UPDATED:       { label: "Profile Updated",   variant: "default" },
+  SETTINGS_UPDATED:       { label: "Settings Changed",  variant: "warning" },
   STOCK_TRANSFERRED:      { label: "Stock Transfer",    variant: "info" },
 };
 
