@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   CreditCard, TrendingUp, Users, Building2, Clock,
   CheckCircle2, AlertTriangle, FileText, Printer,
-  ChevronRight, Loader2, XCircle,
+  ChevronRight, Loader2, XCircle, RefreshCw, Info,
 } from "lucide-react";
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -24,8 +24,8 @@ const PLAN_META: Record<string, { color: string; gradient: string; badge: string
 
 const PLAN_FEATURES: Record<string, string[]> = {
   STARTER:      ["1 branch", "5 staff accounts", "Inventory + POS", "Expiry tracking", "Basic analytics"],
-  PROFESSIONAL: ["Up to 5 branches", "50 staff accounts", "All Starter features", "Supplier & PO management", "Advanced analytics", "Priority support"],
-  ENTERPRISE:   ["Unlimited branches", "Unlimited staff", "All Professional features", "API access", "Custom domain", "Dedicated SLA"],
+  PROFESSIONAL: ["Up to 5 branches", "50 staff accounts", "All Starter features", "Customer marketplace", "Delivery system", "Advanced analytics", "Priority support"],
+  ENTERPRISE:   ["Unlimited branches", "Unlimited staff", "All Professional features", "AI features", "National analytics", "Custom pricing", "Dedicated SLA"],
 };
 
 const PLAN_PRICES: Record<string, { monthly: number; annual: number }> = {
@@ -35,16 +35,37 @@ const PLAN_PRICES: Record<string, { monthly: number; annual: number }> = {
 };
 
 const STATUS_VARIANT: Record<string, any> = {
-  ACTIVE:   "success", TRIALING: "info",
-  PAST_DUE: "danger",  CANCELLED: "muted", SUSPENDED: "danger",
+  ACTIVE:    "success",
+  TRIALING:  "info",
+  PAST_DUE:  "danger",
+  EXPIRED:   "danger",
+  CANCELLED: "muted",
+  SUSPENDED: "danger",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE:    "Active",
+  TRIALING:  "Free Trial",
+  PAST_DUE:  "Expired",
+  EXPIRED:   "Expired",
+  CANCELLED: "Cancelled",
+  SUSPENDED: "Suspended",
 };
 
 const PAYMENT_METHODS = [
-  { id: "EVC_PLUS",       label: "EVC Plus",       color: "#E34234", number: "+252-61-DAWOLINK" },
-  { id: "ZAAD",           label: "Zaad",            color: "#009E52", number: "+252-63-DAWOLINK" },
-  { id: "SAHAL",          label: "Sahal",           color: "#0071B9", number: "+252-90-DAWOLINK" },
-  { id: "PREMIER_WALLET", label: "Premier Wallet",  color: "#8B5CF6", number: "+252-77-DAWOLINK" },
+  { id: "EVC_PLUS",       label: "EVC Plus",       color: "#E34234", number: "25261XXXXXXX" },
+  { id: "ZAAD",           label: "Zaad",            color: "#009E52", number: "25263XXXXXXX" },
+  { id: "SAHAL",          label: "Sahal",           color: "#0071B9", number: "25290XXXXXXX" },
+  { id: "WAAFI",          label: "Waafi",           color: "#7C3AED", number: "25277XXXXXXX" },
+  { id: "PREMIER_WALLET", label: "Premier Wallet",  color: "#8B5CF6", number: "25277XXXXXXX" },
+  { id: "BANK_TRANSFER",  label: "Bank Transfer",   color: "#374151", number: "Account on file" },
 ];
+
+// Reference codes per plan+cycle, shown to pharmacy owner
+function getReferenceCode(pharmacyId: string, plan: string, cycle: string) {
+  const tag = cycle === "ANNUAL" ? "YR" : "MO";
+  return `DWL-${plan.slice(0, 3)}-${tag}-${(pharmacyId ?? "000000").slice(-6).toUpperCase()}`;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -109,16 +130,13 @@ function PlanCard({ plan, current, cycle, onSelect }: {
       )}
 
       <div className="mb-4">
-        <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${meta.badge.split(" ")[1]}`}
-          style={{ color: meta.color }}>{plan}</p>
+        <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: meta.color }}>{plan}</p>
         {isEnterprise ? (
           <p className="text-2xl font-bold text-gray-900">Custom pricing</p>
         ) : (
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(price)}
-            <span className="text-sm font-normal text-gray-400">
-              /{cycle === "ANNUAL" ? "yr" : "mo"}
-            </span>
+            <span className="text-sm font-normal text-gray-400">/{cycle === "ANNUAL" ? "yr" : "mo"}</span>
           </p>
         )}
         {cycle === "ANNUAL" && !isEnterprise && (
@@ -160,29 +178,32 @@ function PlanCard({ plan, current, cycle, onSelect }: {
   );
 }
 
-// ── Payment form ───────────────────────────────────────────────────────────
+// ── Payment form — submits to admin verification queue ─────────────────────
 
-function PaymentForm({ plan, cycle, onClose }: {
-  plan: string; cycle: "MONTHLY" | "ANNUAL"; onClose: () => void;
+function PaymentForm({ plan, cycle, pharmacyId, onClose }: {
+  plan: string; cycle: "MONTHLY" | "ANNUAL"; pharmacyId?: string; onClose: () => void;
 }) {
   const qc = useQueryClient();
   const [method, setMethod] = useState("EVC_PLUS");
   const [phone, setPhone] = useState("");
-  const [reference, setReference] = useState("");
+  const [transactionId, setTransactionId] = useState("");
   const [payMode, setPayMode] = useState<"gateway" | "manual">("gateway");
   const [payResult, setPayResult] = useState<any>(null);
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === method)!;
   const price = cycle === "ANNUAL" ? PLAN_PRICES[plan].annual : PLAN_PRICES[plan].monthly;
+  const refCode = getReferenceCode(pharmacyId ?? "", plan, cycle);
 
-  // Check if gateway is available
+  const canUseGateway = ["EVC_PLUS", "ZAAD", "SAHAL"].includes(method);
+
+  // Check if EVC gateway is live
   const { data: gatewayStatus } = useQuery<{ enabled: boolean }>({
     queryKey: ["gateway-status"],
     queryFn: () => api.get("/v1/payments/gateway/status").then(r => r.data),
     staleTime: 60_000,
   });
-  const gatewayEnabled = gatewayStatus?.enabled ?? false;
+  const gatewayEnabled = (gatewayStatus?.enabled ?? false) && canUseGateway;
 
-  // Gateway payment (EVC push)
+  // Gateway payment (EVC push) — auto-activates on success
   const { mutate: payGateway, isPending: gatewayPending } = useMutation({
     mutationFn: () => api.post("/v1/billing/pay/evc", { phone, plan, billingCycle: cycle, method }).then(r => r.data),
     onSuccess: (data) => {
@@ -197,48 +218,56 @@ function PaymentForm({ plan, cycle, onClose }: {
     onError: (e: any) => toast.error(e.response?.data?.message ?? "Payment failed"),
   });
 
-  // Manual reference payment
-  const { mutate: payManual, isPending: manualPending } = useMutation({
-    mutationFn: () => api.post("/v1/billing/pay", { method, reference, amount: price, plan, billingCycle: cycle }).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(data.message ?? "Payment submitted! Subscription activated.");
+  // Manual payment — submits proof, awaits admin approval
+  const { mutate: submitRequest, isPending: requestPending } = useMutation({
+    mutationFn: () => api.post("/v1/billing/pay/request", {
+      plan,
+      billingCycle: cycle,
+      amount: price,
+      paymentMethod: method,
+      transactionId: transactionId.trim(),
+      phone: phone.trim() || undefined,
+      referenceCode: refCode,
+    }).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Payment submitted! Our team will verify and activate your subscription within 24 hours.");
       qc.invalidateQueries({ queryKey: ["subscription"] });
-      qc.invalidateQueries({ queryKey: ["billing-usage"] });
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message ?? "Payment failed"),
+    onError: (e: any) => toast.error(e.response?.data?.message ?? "Submission failed"),
   });
 
-  const isPending = gatewayPending || manualPending;
+  const isPending = gatewayPending || requestPending;
+  const isBankTransfer = method === "BANK_TRANSFER";
 
   return (
     <div className="space-y-5">
-      <div className="bg-indigo-50 rounded-xl p-4">
+      <div className="bg-indigo-50 rounded-xl p-4 flex items-center justify-between">
         <p className="text-sm text-indigo-700">
-          Paying for <strong>{plan}</strong> plan · <strong>{cycle}</strong> · <strong>{formatCurrency(price)}</strong>
+          <strong>{plan}</strong> plan · <strong>{cycle === "ANNUAL" ? "Annual" : "Monthly"}</strong>
         </p>
+        <p className="text-lg font-bold text-indigo-900">{formatCurrency(price)}</p>
       </div>
 
-      {/* Method */}
+      {/* Payment method grid */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Payment method</label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {PAYMENT_METHODS.map(m => (
-            <button key={m.id} type="button" onClick={() => setMethod(m.id)}
+            <button key={m.id} type="button" onClick={() => { setMethod(m.id); setPayResult(null); }}
               className={`p-3 rounded-xl border-2 text-left transition ${method === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-100 bg-white hover:border-gray-200"}`}>
               <p className="text-sm font-semibold" style={{ color: m.color }}>{m.label}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{m.number}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Payment mode toggle */}
-      {gatewayEnabled && (
+      {/* Gateway toggle (only for EVC/Zaad/Sahal when enabled) */}
+      {gatewayEnabled && !isBankTransfer && (
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
           {[
-            { key: "gateway", label: "🚀 Pay with phone" },
-            { key: "manual",  label: "📋 Manual reference" },
+            { key: "gateway", label: "Pay instantly" },
+            { key: "manual",  label: "Manual transfer" },
           ].map(opt => (
             <button key={opt.key} onClick={() => { setPayMode(opt.key as any); setPayResult(null); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${payMode === opt.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>
@@ -248,19 +277,18 @@ function PaymentForm({ plan, cycle, onClose }: {
         </div>
       )}
 
-      {/* Gateway mode */}
-      {(gatewayEnabled && payMode === "gateway") ? (
+      {/* Gateway push payment */}
+      {gatewayEnabled && payMode === "gateway" && !isBankTransfer ? (
         <div className="space-y-4">
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm">
             <p className="font-semibold text-emerald-800 mb-1">Instant payment</p>
-            <p className="text-emerald-700 text-xs">Enter your {selectedMethod.label} number. You will receive a prompt on your phone to confirm the payment.</p>
+            <p className="text-emerald-700 text-xs">Enter your {selectedMethod.label} number. You'll receive a prompt on your phone to confirm.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{selectedMethod.label} Phone Number *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{selectedMethod.label} phone number *</label>
             <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
               placeholder="0615000000" maxLength={15}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <p className="text-xs text-gray-400 mt-1">Enter your registered {selectedMethod.label} number</p>
           </div>
 
           {payResult && (
@@ -281,33 +309,82 @@ function PaymentForm({ plan, cycle, onClose }: {
           </div>
         </div>
       ) : (
-        /* Manual mode */
+        /* Manual / bank transfer — admin verification flow */
         <div className="space-y-4">
-          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm">
-            <p className="font-semibold text-amber-800 mb-1">How to pay manually:</p>
-            <ol className="text-amber-700 space-y-1 text-xs list-decimal pl-4">
-              <li>Send <strong>{formatCurrency(price)}</strong> via {selectedMethod.label}</li>
-              <li>To: <strong>{selectedMethod.number}</strong></li>
-              <li>Copy the transaction reference number</li>
-              <li>Paste it below and click Confirm</li>
-            </ol>
+          {/* Payment instructions */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-2">
+            <p className="font-semibold text-amber-900">How to pay:</p>
+            {isBankTransfer ? (
+              <ol className="text-amber-800 space-y-1.5 text-xs list-decimal pl-4">
+                <li>Transfer <strong>{formatCurrency(price)}</strong> to our bank account</li>
+                <li>Use reference: <code className="bg-amber-100 px-1 rounded font-mono">{refCode}</code></li>
+                <li>Enter your transaction ID below</li>
+                <li>Our team will verify and activate your plan within 24h</li>
+              </ol>
+            ) : (
+              <ol className="text-amber-800 space-y-1.5 text-xs list-decimal pl-4">
+                <li>Send <strong>{formatCurrency(price)}</strong> via <strong>{selectedMethod.label}</strong></li>
+                <li>To number: <strong>{selectedMethod.number}</strong></li>
+                <li>Use reference: <code className="bg-amber-100 px-1 rounded font-mono">{refCode}</code></li>
+                <li>Enter the transaction ID you receive</li>
+                <li>Our team verifies and activates within 24h</li>
+              </ol>
+            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Transaction reference *</label>
-            <input value={reference} onChange={e => setReference(e.target.value)}
-              placeholder="e.g. MP210528001234"
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Transaction ID / Reference *
+            </label>
+            <input value={transactionId} onChange={e => setTransactionId(e.target.value)}
+              placeholder={isBankTransfer ? "Bank transfer reference" : "e.g. MP210528001234"}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
+
+          {!isBankTransfer && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Your {selectedMethod.label} phone number (optional)
+              </label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="0615000000" maxLength={15}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
+            <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+            <span>After clicking <strong>"I Have Paid"</strong>, an admin will review your payment and activate your subscription. You'll receive an email confirmation.</span>
+          </div>
+
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Cancel</button>
-            <button onClick={() => payManual()} disabled={isPending || !reference.trim()}
+            <button onClick={() => submitRequest()} disabled={isPending || !transactionId.trim()}
               className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition">
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Confirm Payment — {formatCurrency(price)}
+              I Have Paid — Submit for Review
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Pending payment request banner ─────────────────────────────────────────
+
+function PendingRequestBanner({ request, onCancel }: { request: any; onCancel?: () => void }) {
+  return (
+    <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+      <Clock className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-blue-900">Payment submitted — awaiting admin verification</p>
+        <p className="text-xs text-blue-700 mt-0.5">
+          {request.plan} · {request.billingCycle === "ANNUAL" ? "Annual" : "Monthly"} · {formatCurrency(Number(request.amount))}
+          {request.paymentMethod && <> · via {request.paymentMethod.replace(/_/g, " ")}</>}
+        </p>
+        <p className="text-xs text-blue-500 mt-1">Submitted {formatDate(request.createdAt)} · Usually approved within 24 hours</p>
+      </div>
     </div>
   );
 }
@@ -361,7 +438,10 @@ export default function BillingPage() {
   const daysLeft = sub ? Math.ceil((new Date(sub.currentPeriodEnd).getTime() - Date.now()) / 86400000) : 0;
   const periodDays = sub?.billingCycle === "ANNUAL" ? 365 : 30;
   const periodPct = sub ? Math.max(2, Math.min(100, (daysLeft / periodDays) * 100)) : 0;
-  const urgency = daysLeft <= 3 ? "text-red-600" : daysLeft <= 7 ? "text-amber-600" : "text-emerald-600";
+
+  const isExpired = sub?.status === "EXPIRED" || sub?.status === "PAST_DUE";
+  const isTrial = sub?.status === "TRIALING";
+  const isActive = sub?.status === "ACTIVE";
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "Overview",  icon: <CreditCard className="h-4 w-4" /> },
@@ -377,13 +457,57 @@ export default function BillingPage() {
         <p className="text-sm text-gray-500 mt-0.5">Manage your plan, payments, and invoices</p>
       </div>
 
-      {/* Alert banners */}
-      {sub?.status === "TRIALING" && daysLeft <= 7 && (
+      {/* ── Alert banners ── */}
+
+      {/* Expired */}
+      {isExpired && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
+          <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-900">Subscription expired — Read-only mode</p>
+            <p className="text-xs text-red-700 mt-0.5">You can view your data but new sales, orders, and inventory changes are blocked until you renew.</p>
+          </div>
+          <button onClick={() => { setTab("plans"); }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition flex-shrink-0">
+            <RefreshCw className="h-3.5 w-3.5" /> Renew Now
+          </button>
+        </div>
+      )}
+
+      {/* Trial — 1 day */}
+      {isTrial && daysLeft === 1 && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <p className="text-sm text-red-800 flex-1">
+            <strong>Trial expires today!</strong> Subscribe now to avoid interruption.
+          </p>
+          <button onClick={() => { setTab("plans"); setCycle("ANNUAL"); }}
+            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition flex-shrink-0">
+            Subscribe Now
+          </button>
+        </div>
+      )}
+
+      {/* Trial — 3 days */}
+      {isTrial && daysLeft > 1 && daysLeft <= 3 && (
+        <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
+          <AlertTriangle className="h-5 w-5 text-orange-600 flex-shrink-0" />
+          <p className="text-sm text-orange-800 flex-1">
+            <strong>Trial expires in {daysLeft} days.</strong> Renew now to avoid interruption.
+          </p>
+          <button onClick={() => { setTab("plans"); }}
+            className="px-4 py-2 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition flex-shrink-0">
+            Choose Plan
+          </button>
+        </div>
+      )}
+
+      {/* Trial — 7 days */}
+      {isTrial && daysLeft > 3 && daysLeft <= 7 && (
         <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800 flex-1">
-            <strong>Trial ending soon.</strong> Your free trial expires in <strong>{daysLeft} day{daysLeft !== 1 ? "s" : ""}</strong>.
-            Activate a plan to keep uninterrupted access.
+            <strong>Free trial ends in {daysLeft} days.</strong> Activate a paid plan to keep uninterrupted access.
           </p>
           <button onClick={() => { setTab("plans"); setCycle("MONTHLY"); }}
             className="px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl hover:bg-amber-600 transition flex-shrink-0">
@@ -391,18 +515,36 @@ export default function BillingPage() {
           </button>
         </div>
       )}
-      {sub?.status === "PAST_DUE" && (
-        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
-          <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-800 flex-1">
-            <strong>Subscription expired.</strong> Some features may be restricted. Renew now to restore full access.
+
+      {/* Paid subscription — renewal warnings */}
+      {isActive && daysLeft <= 30 && daysLeft > 0 && (
+        <div className={`flex items-center gap-3 p-4 rounded-2xl border ${
+          daysLeft <= 3  ? "bg-orange-50 border-orange-200" :
+          daysLeft <= 7  ? "bg-amber-50 border-amber-200"  :
+                           "bg-blue-50 border-blue-200"
+        }`}>
+          <Clock className={`h-5 w-5 flex-shrink-0 ${
+            daysLeft <= 3 ? "text-orange-600" : daysLeft <= 7 ? "text-amber-600" : "text-blue-500"
+          }`} />
+          <p className={`text-sm flex-1 ${
+            daysLeft <= 3 ? "text-orange-800" : daysLeft <= 7 ? "text-amber-800" : "text-blue-800"
+          }`}>
+            <strong>Subscription expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}.</strong>{" "}
+            {daysLeft <= 7 ? "Renew now to avoid interruption." : "Plan ahead and renew early."}
           </p>
-          <button onClick={() => { setTab("plans"); }}
-            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition flex-shrink-0">
+          <button onClick={() => { setTab("plans"); setCycle(sub?.billingCycle ?? "MONTHLY"); }}
+            className={`px-4 py-2 text-white text-xs font-bold rounded-xl transition flex-shrink-0 ${
+              daysLeft <= 3 ? "bg-orange-500 hover:bg-orange-600" :
+              daysLeft <= 7 ? "bg-amber-500 hover:bg-amber-600" :
+                              "bg-blue-500 hover:bg-blue-600"
+            }`}>
             Renew
           </button>
         </div>
       )}
+
+      {/* Pending payment request */}
+      {sub?.pendingRequest && <PendingRequestBanner request={sub.pendingRequest} />}
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
@@ -430,7 +572,7 @@ export default function BillingPage() {
             </div>
           ) : (
             <>
-              {/* Subscription card */}
+              {/* Subscription hero card */}
               <div className={`bg-gradient-to-br ${PLAN_META[sub.plan]?.gradient ?? "from-indigo-600 to-purple-700"} rounded-2xl p-6 text-white`}>
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -441,38 +583,59 @@ export default function BillingPage() {
                     </p>
                   </div>
                   <Badge variant={STATUS_VARIANT[sub.status] ?? "muted"} className="text-sm">
-                    {sub.status.replace("_", " ")}
+                    {STATUS_LABEL[sub.status] ?? sub.status}
                   </Badge>
                 </div>
 
-                {/* Period progress */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-white/80">
-                    <span>Billing period</span>
-                    <span className={`font-semibold ${daysLeft <= 7 ? "text-red-300" : "text-white"}`}>
-                      {daysLeft > 0 ? `${daysLeft} days remaining` : "Expired"}
-                    </span>
+                {/* Key dates row */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-white/10 rounded-xl p-3 text-center">
+                    <p className="text-white/60 text-xs mb-1">Start Date</p>
+                    <p className="text-white text-sm font-semibold">{formatDate(sub.currentPeriodStart)}</p>
                   </div>
-                  <div className="h-2 rounded-full bg-white/20">
-                    <div className="h-full rounded-full bg-white/80 transition-all" style={{ width: `${periodPct}%` }} />
+                  <div className="bg-white/10 rounded-xl p-3 text-center">
+                    <p className="text-white/60 text-xs mb-1">Expiry Date</p>
+                    <p className="text-white text-sm font-semibold">{formatDate(sub.currentPeriodEnd)}</p>
                   </div>
-                  <div className="flex justify-between text-xs text-white/50">
-                    <span>{formatDate(sub.currentPeriodStart)}</span>
-                    <span>{formatDate(sub.currentPeriodEnd)}</span>
+                  <div className={`rounded-xl p-3 text-center ${
+                    isExpired ? "bg-red-500/40" :
+                    daysLeft <= 7 ? "bg-amber-400/30" : "bg-white/10"
+                  }`}>
+                    <p className="text-white/60 text-xs mb-1">Days Remaining</p>
+                    <p className={`text-sm font-bold ${
+                      isExpired ? "text-red-200" : daysLeft <= 7 ? "text-amber-200" : "text-white"
+                    }`}>
+                      {isExpired ? "Expired" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""}`}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-5">
+                {/* Progress bar */}
+                <div className="space-y-1.5 mb-5">
+                  <div className="flex justify-between text-xs text-white/60">
+                    <span>Billing period</span>
+                    <span>{Math.round(periodPct)}% remaining</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/20">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        isExpired ? "bg-red-400" :
+                        daysLeft <= 7 ? "bg-amber-300" : "bg-white/80"
+                      }`}
+                      style={{ width: `${periodPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
                   <button onClick={() => setTab("plans")}
                     className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-semibold transition">
-                    Upgrade Plan <ChevronRight className="h-3.5 w-3.5" />
+                    {isExpired ? <><RefreshCw className="h-3.5 w-3.5" /> Renew Now</> : <><TrendingUp className="h-3.5 w-3.5" /> Upgrade Plan</>}
                   </button>
-                  {sub.status !== "CANCELLED" && (
-                    <button onClick={() => setTab("invoices")}
-                      className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition">
-                      View Invoices
-                    </button>
-                  )}
+                  <button onClick={() => setTab("invoices")}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-medium transition">
+                    <FileText className="h-3.5 w-3.5" /> Invoices
+                  </button>
                 </div>
               </div>
 
@@ -507,7 +670,7 @@ export default function BillingPage() {
                 </div>
               )}
 
-              {/* Cancel */}
+              {/* Cancel (only for active non-expired) */}
               {sub.status === "ACTIVE" && (
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-center justify-between">
                   <div>
@@ -602,19 +765,33 @@ export default function BillingPage() {
               <PlanCard
                 key={plan}
                 plan={plan}
-                current={sub?.plan === plan}
+                current={sub?.plan === plan && !isExpired}
                 cycle={cycle}
                 onSelect={() => plan !== "ENTERPRISE" && setPayingPlan(plan)}
               />
             ))}
+          </div>
+
+          {/* Info about payment flow */}
+          <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm text-gray-600">
+            <Info className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+            <div>
+              <p className="font-medium text-gray-700 mb-1">How payments work</p>
+              <p className="text-xs">Pay via EVC Plus, Zaad, Sahal, Waafi, Premier Wallet, or Bank Transfer. Submit your transaction ID and an admin will verify and activate your subscription within 24 hours. For instant activation, use the EVC gateway if available.</p>
+            </div>
           </div>
         </div>
       )}
 
       {/* Payment modal */}
       {payingPlan && (
-        <Modal open onClose={() => setPayingPlan(null)} title={`Activate ${payingPlan} Plan`} size="md">
-          <PaymentForm plan={payingPlan} cycle={cycle} onClose={() => setPayingPlan(null)} />
+        <Modal open onClose={() => setPayingPlan(null)} title={`Subscribe — ${payingPlan} Plan`} size="md">
+          <PaymentForm
+            plan={payingPlan}
+            cycle={cycle}
+            pharmacyId={sub?.pharmacyId}
+            onClose={() => setPayingPlan(null)}
+          />
         </Modal>
       )}
 
@@ -624,7 +801,7 @@ export default function BillingPage() {
           <div className="space-y-4">
             <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
               <p className="font-semibold mb-1">Are you sure?</p>
-              <p>You'll keep full access until <strong>{sub ? formatDate(sub.currentPeriodEnd) : "—"}</strong>. After that, your account will be downgraded.</p>
+              <p>You'll keep full access until <strong>{sub ? formatDate(sub.currentPeriodEnd) : "—"}</strong>. After that, your account switches to read-only mode.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setCancelConfirm(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">Keep Plan</button>

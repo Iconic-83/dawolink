@@ -158,6 +158,77 @@ export class MailService implements OnModuleInit {
     }).catch(err => this.log.error(`Failed to send trial expiry email to ${opts.to}: ${err.message}`));
   }
 
+  async sendSubscriptionExpiring(opts: {
+    to: string;
+    pharmacyName: string;
+    daysLeft: number;
+    plan: string;
+    billingCycle: string;
+    upgradeUrl: string;
+  }) {
+    if (!this.transporter) return;
+
+    const isUrgent = opts.daysLeft <= 3;
+    const cycleLabel = opts.billingCycle === "ANNUAL" ? "annual" : "monthly";
+    const emoji = opts.daysLeft === 1 ? "🚨" : isUrgent ? "⚠️" : "📅";
+    const subject = opts.daysLeft === 1
+      ? `🚨 Your DawoLink subscription expires tomorrow`
+      : `${emoji} Your DawoLink subscription expires in ${opts.daysLeft} days`;
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: opts.to,
+      subject,
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff">
+          <div style="text-align:center;margin-bottom:32px">
+            <h1 style="font-size:24px;font-weight:800;color:#180D62;margin:0">
+              Dawo<span style="color:#00C897">Link</span>
+            </h1>
+          </div>
+
+          <div style="background:${isUrgent ? "linear-gradient(135deg,#FEF2F2,#FEE2E2);border:1px solid #FECACA" : "linear-gradient(135deg,#FFF7ED,#FEF3C7);border:1px solid #FCD34D"};border-radius:16px;padding:24px;margin-bottom:24px;text-align:center">
+            <p style="font-size:36px;margin:0 0 8px">${emoji}</p>
+            <h2 style="font-size:22px;color:${isUrgent ? "#991B1B" : "#92400E"};margin:0 0 6px">
+              ${opts.daysLeft === 1 ? "Your subscription expires tomorrow" : `${opts.daysLeft} days until renewal`}
+            </h2>
+            <p style="color:${isUrgent ? "#B91C1C" : "#B45309"};margin:0;font-size:14px">
+              ${opts.pharmacyName} · ${opts.plan} Plan · ${cycleLabel} billing
+            </p>
+          </div>
+
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px">
+            Hi <strong>${opts.pharmacyName}</strong>,<br/><br/>
+            Your <strong>${opts.plan}</strong> subscription (${cycleLabel} billing) expires in
+            <strong>${opts.daysLeft} day${opts.daysLeft !== 1 ? "s" : ""}</strong>.
+            Renew before it expires to avoid any interruption to your pharmacy operations.
+          </p>
+
+          <div style="background:#F4F2FF;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+            <p style="font-size:13px;color:#180D62;margin:0 0 8px;font-weight:700">What happens if you don't renew:</p>
+            <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.8">
+              <li>You can still log in and view your data</li>
+              <li>New sales, orders, and inventory changes will be blocked</li>
+              <li>Your data is safe — just renew to restore full access</li>
+            </ul>
+          </div>
+
+          <div style="text-align:center;margin:32px 0">
+            <a href="${opts.upgradeUrl}"
+               style="display:inline-block;padding:16px 36px;background:${isUrgent ? "linear-gradient(90deg,#DC2626,#B91C1C)" : "linear-gradient(90deg,#00C897,#009E78)"};color:#fff;font-weight:700;font-size:16px;border-radius:12px;text-decoration:none">
+              Renew My Subscription
+            </a>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #EDE9FF;margin:24px 0"/>
+          <p style="color:#C4B5FD;font-size:12px;text-align:center">
+            DawoLink · Pharmacy Management Platform · Somalia
+          </p>
+        </div>
+      `,
+    }).catch(err => this.log.error(`Failed to send renewal reminder to ${opts.to}: ${err.message}`));
+  }
+
   async sendSubscriptionExpired(opts: {
     to: string;
     pharmacyName: string;
@@ -179,19 +250,20 @@ export class MailService implements OnModuleInit {
 
           <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:16px;padding:24px;margin-bottom:24px;text-align:center">
             <p style="font-size:32px;margin:0 0 8px">🔒</p>
-            <h2 style="font-size:22px;color:#991B1B;margin:0 0 6px">Account Suspended</h2>
+            <h2 style="font-size:22px;color:#991B1B;margin:0 0 6px">Subscription Expired — Read-Only Mode</h2>
             <p style="color:#B91C1C;margin:0;font-size:14px">${opts.pharmacyName}</p>
           </div>
 
           <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px">
-            Your DawoLink subscription has expired and your account has been suspended.
-            Your data is safe and intact — you just need to reactivate your subscription to regain access.
+            Your DawoLink subscription has expired. Your account is in <strong>read-only mode</strong> —
+            you can still log in and view all your data, but new sales, orders, and inventory changes are paused
+            until you renew. Your data is completely safe.
           </p>
 
           <div style="text-align:center;margin:32px 0">
             <a href="${opts.upgradeUrl}"
                style="display:inline-block;padding:16px 36px;background:linear-gradient(90deg,#180D62,#2D1B8E);color:#fff;font-weight:700;font-size:16px;border-radius:12px;text-decoration:none">
-              Reactivate My Account
+              Renew My Subscription
             </a>
           </div>
 

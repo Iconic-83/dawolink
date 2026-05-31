@@ -13,17 +13,25 @@ export const PLAN_LIMITS = {
   ENTERPRISE: { branches: Infinity, staff: Infinity },
 };
 
+// Write methods that are blocked in soft-lock (expired) mode
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+// Route prefixes that are always allowed even when expired (billing + auth)
+const ALWAYS_ALLOWED_PREFIXES = ["/v1/billing", "/v1/auth", "/v1/pharmacy/profile"];
+
 @Injectable()
 export class PlanGuard implements CanActivate {
   constructor(private reflector: Reflector, private prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const { user } = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest();
+    const { user } = req;
+
     if (!user || user.actorType !== "pharmacy_user") return true;
 
     const pharmacy = await this.prisma.pharmacy.findUnique({
       where: { id: user.pharmacyId },
-      select: { isActive: true, plan: true, planExpiry: true },
+      select: { isActive: true, plan: true },
     });
 
     if (!pharmacy?.isActive) {
@@ -36,12 +44,24 @@ export class PlanGuard implements CanActivate {
     });
 
     if (sub) {
-      const expired = new Date() > new Date(sub.currentPeriodEnd);
-      if (expired && sub.status !== "ACTIVE") {
-        throw new ForbiddenException("Your subscription has expired. Please renew to continue.");
+      const isExpired = sub.status === "EXPIRED" ||
+        (sub.status !== "ACTIVE" && sub.status !== "TRIALING" && new Date() > new Date(sub.currentPeriodEnd));
+
+      if (isExpired) {
+        const path: string = req.path ?? "";
+        const method: string = req.method ?? "GET";
+
+        // Billing and auth routes are always accessible so owner can renew
+        const isAllowed = ALWAYS_ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix));
+        if (!isAllowed && WRITE_METHODS.has(method)) {
+          throw new ForbiddenException(
+            "Your subscription has expired. You can view your data but cannot make changes. Renew at /billing to restore full access.",
+          );
+        }
       }
-      if (sub.status === "SUSPENDED" || sub.status === "CANCELLED") {
-        throw new ForbiddenException("Your subscription is inactive. Please renew to continue.");
+
+      if (sub.status === "CANCELLED") {
+        throw new ForbiddenException("Your subscription is cancelled. Please subscribe again to continue.");
       }
     }
 

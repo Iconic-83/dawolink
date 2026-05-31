@@ -68,6 +68,27 @@ model Invoice {
   @@map("invoices")
 }
 
+model PaymentRequest {
+  id             String               @id @default(cuid())
+  pharmacyId     String
+  plan           Plan
+  billingCycle   BillingCycle
+  amount         Decimal              @db.Decimal(10, 2)
+  paymentMethod  String
+  transactionId  String
+  phone          String?
+  referenceCode  String?
+  status         PaymentRequestStatus @default(PENDING)
+  rejectionReason String?
+  reviewedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  pharmacy       Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@map("payment_requests")
+}
+
 // ─────────────────────────────────────────────
 // DYNAMIC RBAC
 // ─────────────────────────────────────────────
@@ -190,6 +211,7 @@ model Pharmacy {
   promotions            Promotion[]
   reservations          MedicineReservation[]
   supportTickets        SupportTicket[]
+  paymentRequests       PaymentRequest[]
 
   @@map("pharmacies")
 }
@@ -911,6 +933,13 @@ enum SubscriptionStatus {
   CANCELLED
   TRIALING
   SUSPENDED
+  EXPIRED
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum BillingCycle {

@@ -46,6 +46,15 @@ export class BillingController {
     return this.billing.payWithEvc(req.user.pharmacyId, body);
   }
 
+  @Post("pay/request")
+  @ApiOperation({ summary: "Submit payment proof — awaits admin approval before activating" })
+  submitPaymentRequest(
+    @Req() req: any,
+    @Body() body: { plan: any; billingCycle: any; amount: number; paymentMethod: string; transactionId: string; phone?: string; referenceCode?: string },
+  ) {
+    return this.billing.submitPaymentRequest(req.user.pharmacyId, body);
+  }
+
   @Get("plans")
   @ApiOperation({ summary: "Get available plans and pricing" })
   getPlans() {
@@ -115,5 +124,33 @@ export class BillingController {
     @Body() body: { plan: any; billingCycle: "MONTHLY" | "ANNUAL"; amount: number; paymentMethod?: string; reference?: string; notes?: string },
   ) {
     return this.billing.adminAssignPlan(pharmacyId, body);
+  }
+
+  @Get("admin/pending-payments")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "List pending payment requests awaiting approval" })
+  listPendingPayments(@Query("page") page = "1", @Query("limit") limit = "20") {
+    return this.billing.adminListPendingPayments(+page, +limit);
+  }
+
+  @Get("admin/all-payment-requests")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "List all payment requests (admin)" })
+  listAllPaymentRequests(@Query("page") page = "1", @Query("limit") limit = "30") {
+    return this.billing.adminListAllPaymentRequests(+page, +limit);
+  }
+
+  @Post("admin/payments/:id/approve")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "Approve a pending payment request" })
+  approvePayment(@Param("id") id: string) {
+    return this.billing.adminApprovePayment(id);
+  }
+
+  @Post("admin/payments/:id/reject")
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: "Reject a pending payment request" })
+  rejectPayment(@Param("id") id: string, @Body() body: { reason?: string }) {
+    return this.billing.adminRejectPayment(id, body.reason);
   }
 }

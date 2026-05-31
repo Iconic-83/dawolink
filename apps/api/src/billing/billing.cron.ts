@@ -5,6 +5,11 @@ import { MailService } from "../common/mail/mail.service";
 import { ConfigService } from "@nestjs/config";
 import { InboxService } from "../inbox/inbox.service";
 
+// Days before expiry at which we send renewal reminders for paid subscriptions
+const PAID_REMINDER_DAYS = [30, 14, 7, 3, 1];
+// Days before expiry at which we send trial reminder emails
+const TRIAL_REMINDER_DAYS = [7, 3, 1];
+
 @Injectable()
 export class BillingCron {
   private readonly logger = new Logger(BillingCron.name);
@@ -16,88 +21,157 @@ export class BillingCron {
     private inbox: InboxService,
   ) {}
 
-  // Runs every hour — expires TRIALING and ACTIVE subs past their period end
+  private get frontendUrl() {
+    return this.config.get<string>("FRONTEND_URL", "https://dawolink.com");
+  }
+
+  // Runs every hour — soft-expires TRIALING and ACTIVE subs past their period end
   @Cron(CronExpression.EVERY_HOUR)
   async expireSubscriptions() {
     const now = new Date();
 
-    const expired = await this.prisma.subscription.updateMany({
+    // Find subscriptions that just expired (still TRIALING/ACTIVE but period has ended)
+    const toExpire = await this.prisma.subscription.findMany({
       where: {
         status: { in: ["TRIALING", "ACTIVE"] },
         currentPeriodEnd: { lt: now },
       },
-      data: { status: "PAST_DUE" },
+      include: { pharmacy: { select: { id: true, name: true, email: true } } },
     });
 
-    if (expired.count > 0) {
-      this.logger.warn(`Expired ${expired.count} subscription(s) to PAST_DUE`);
+    if (toExpire.length === 0) return;
 
-      // Suspend pharmacies and notify them
-      const expiredSubs = await this.prisma.subscription.findMany({
-        where: { status: "PAST_DUE", currentPeriodEnd: { lt: now } },
+    // Soft lock: mark subscription EXPIRED but keep pharmacy active (read-only mode)
+    await this.prisma.subscription.updateMany({
+      where: { id: { in: toExpire.map(s => s.id) } },
+      data: { status: "EXPIRED" },
+    });
+
+    this.logger.warn(`Soft-locked ${toExpire.length} subscription(s) → EXPIRED`);
+
+    const billingUrl = `${this.frontendUrl}/billing`;
+
+    for (const sub of toExpire) {
+      const ph = sub.pharmacy;
+      if (ph.email) {
+        this.mail.sendSubscriptionExpired({
+          to: ph.email,
+          pharmacyName: ph.name,
+          upgradeUrl: billingUrl,
+        });
+      }
+      this.inbox.push(
+        ph.id,
+        "SUBSCRIPTION_EXPIRED",
+        "Subscription Expired",
+        "Your subscription has expired. Renew now to continue making sales and managing inventory.",
+        "/billing",
+      );
+    }
+  }
+
+  // Runs daily at 9 AM — sends trial expiry warnings at 7, 3, 1 days remaining
+  @Cron("0 9 * * *")
+  async trialExpiryWarnings() {
+    const billingUrl = `${this.frontendUrl}/billing`;
+
+    for (const days of TRIAL_REMINDER_DAYS) {
+      const windowStart = this.dayBoundaryStart(days);
+      const windowEnd   = this.dayBoundaryEnd(days);
+
+      const expiringSoon = await this.prisma.subscription.findMany({
+        where: {
+          status: "TRIALING",
+          currentPeriodEnd: { gte: windowStart, lt: windowEnd },
+        },
         include: { pharmacy: { select: { id: true, name: true, email: true } } },
       });
 
-      await this.prisma.pharmacy.updateMany({
-        where: { id: { in: expiredSubs.map(s => s.pharmacyId) } },
-        data: { isActive: false },
-      });
+      for (const sub of expiringSoon) {
+        const ph = sub.pharmacy;
+        this.logger.log(`Trial warning (${days}d): ${ph.name} <${ph.email}>`);
 
-      const upgradeUrl = `${this.config.get<string>("FRONTEND_URL", "https://dawolink.com")}/billing`;
-      for (const sub of expiredSubs) {
-        if (!sub.pharmacy.email) continue;
-        this.mail.sendSubscriptionExpired({
-          to: sub.pharmacy.email,
-          pharmacyName: sub.pharmacy.name,
-          upgradeUrl,
-        });
+        if (ph.email) {
+          this.mail.sendTrialExpiring({
+            to: ph.email,
+            pharmacyName: ph.name,
+            daysLeft: days,
+            upgradeUrl: billingUrl,
+          });
+        }
+
         this.inbox.push(
-          sub.pharmacyId,
-          "SUBSCRIPTION_EXPIRED",
-          "Subscription Expired",
-          "Your subscription has expired. Renew now to restore access.",
+          ph.id,
+          "SUBSCRIPTION_EXPIRING",
+          `Trial Expiring in ${days} Day${days === 1 ? "" : "s"}`,
+          days === 1
+            ? "Your free trial expires today. Renew now to keep full access."
+            : `Your free trial expires in ${days} days. Upgrade to keep your pharmacy running.`,
           "/billing",
         );
       }
     }
   }
 
-  // Runs daily at 9am — send warning 3 days before trial ends (log only for now)
+  // Runs daily at 9 AM — sends renewal reminders for paid (ACTIVE) subscriptions
   @Cron("0 9 * * *")
-  async trialExpiryWarnings() {
-    const in3Days = new Date();
-    in3Days.setDate(in3Days.getDate() + 3);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  async paidSubscriptionExpiryWarnings() {
+    const billingUrl = `${this.frontendUrl}/billing`;
 
-    const expiringSoon = await this.prisma.subscription.findMany({
-      where: {
-        status: "TRIALING",
-        currentPeriodEnd: { gte: tomorrow, lte: in3Days },
-      },
-      include: { pharmacy: { select: { name: true, email: true } } },
-    });
+    for (const days of PAID_REMINDER_DAYS) {
+      const windowStart = this.dayBoundaryStart(days);
+      const windowEnd   = this.dayBoundaryEnd(days);
 
-    const upgradeUrl = `${this.config.get<string>("FRONTEND_URL", "https://dawolink.com")}/billing`;
-
-    for (const sub of expiringSoon) {
-      const daysLeft = Math.ceil((new Date(sub.currentPeriodEnd).getTime() - Date.now()) / 86400000);
-      this.logger.log(`Trial warning: ${sub.pharmacy.name} (${sub.pharmacy.email}) — ${daysLeft} day(s) left`);
-
-      if (!sub.pharmacy.email) continue;
-      this.mail.sendTrialExpiring({
-        to: sub.pharmacy.email,
-        pharmacyName: sub.pharmacy.name,
-        daysLeft,
-        upgradeUrl,
+      const expiringSoon = await this.prisma.subscription.findMany({
+        where: {
+          status: "ACTIVE",
+          currentPeriodEnd: { gte: windowStart, lt: windowEnd },
+        },
+        include: { pharmacy: { select: { id: true, name: true, email: true } } },
       });
-      this.inbox.push(
-        sub.pharmacyId,
-        "SUBSCRIPTION_EXPIRING",
-        `Trial Expiring in ${daysLeft} Day${daysLeft === 1 ? "" : "s"}`,
-        "Upgrade your plan to keep full access after your trial ends.",
-        "/billing",
-      );
+
+      for (const sub of expiringSoon) {
+        const ph = sub.pharmacy;
+        this.logger.log(`Subscription renewal warning (${days}d): ${ph.name} <${ph.email}>`);
+
+        if (ph.email) {
+          this.mail.sendSubscriptionExpiring({
+            to: ph.email,
+            pharmacyName: ph.name,
+            daysLeft: days,
+            plan: sub.plan,
+            billingCycle: sub.billingCycle,
+            upgradeUrl: billingUrl,
+          });
+        }
+
+        const urgencyLabel = days <= 3 ? "⚠️ Urgent: " : "";
+        this.inbox.push(
+          ph.id,
+          "SUBSCRIPTION_EXPIRING",
+          `${urgencyLabel}Subscription Expires in ${days} Day${days === 1 ? "" : "s"}`,
+          days === 1
+            ? "Your subscription expires tomorrow. Renew now to avoid interruption."
+            : `Your subscription expires in ${days} days. Renew to keep your pharmacy running.`,
+          "/billing",
+        );
+      }
     }
+  }
+
+  // Returns start of "exactly N days from now" window (midnight)
+  private dayBoundaryStart(days: number): Date {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  // Returns end of "exactly N days from now" window (23:59:59)
+  private dayBoundaryEnd(days: number): Date {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(23, 59, 59, 999);
+    return d;
   }
 }

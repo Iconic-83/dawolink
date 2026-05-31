@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from "@nestjs/common";
 import { PrismaService } from "../common/database/prisma.service";
-import { Plan } from "@dawolink/database";
+import { Plan, BillingCycle } from "@dawolink/database";
 import { SubmitPaymentDto } from "./billing.dto";
 import { PLAN_LIMITS } from "../common/guards/plan.guard";
 import { WaafiPayService } from "../payments/waafipay.service";
@@ -32,10 +32,17 @@ export class BillingService {
   ) {}
 
   async getSubscription(pharmacyId: string) {
-    return this.prisma.subscription.findUnique({
-      where: { pharmacyId },
-      include: { invoices: { orderBy: { createdAt: "desc" }, take: 12 } },
-    });
+    const [sub, pendingRequest] = await Promise.all([
+      this.prisma.subscription.findUnique({
+        where: { pharmacyId },
+        include: { invoices: { orderBy: { createdAt: "desc" }, take: 12 } },
+      }),
+      this.prisma.paymentRequest.findFirst({
+        where: { pharmacyId, status: "PENDING" },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    return { ...sub, pendingRequest };
   }
 
   async createSubscription(pharmacyId: string, plan: Plan, billingCycle: "MONTHLY" | "ANNUAL" = "MONTHLY") {
@@ -155,6 +162,134 @@ export class BillingService {
     });
 
     return { subscription: sub, invoice, message: "Payment recorded. Your subscription is now active." };
+  }
+
+  async submitPaymentRequest(pharmacyId: string, dto: {
+    plan: Plan;
+    billingCycle: BillingCycle;
+    amount: number;
+    paymentMethod: string;
+    transactionId: string;
+    phone?: string;
+    referenceCode?: string;
+  }) {
+    const existing = await this.prisma.paymentRequest.findFirst({
+      where: { pharmacyId, status: "PENDING" },
+    });
+    if (existing) throw new ConflictException("You already have a pending payment request. Please wait for admin review.");
+
+    const referenceCode = dto.referenceCode ?? `DWL-${pharmacyId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
+    return this.prisma.paymentRequest.create({
+      data: {
+        pharmacyId,
+        plan: dto.plan,
+        billingCycle: dto.billingCycle,
+        amount: dto.amount,
+        paymentMethod: dto.paymentMethod,
+        transactionId: dto.transactionId,
+        phone: dto.phone,
+        referenceCode,
+        status: "PENDING",
+      },
+    });
+  }
+
+  async adminListPendingPayments(page = 1, limit = 20) {
+    const [requests, total] = await Promise.all([
+      this.prisma.paymentRequest.findMany({
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: { pharmacy: { select: { id: true, name: true, city: true, email: true } } },
+      }),
+      this.prisma.paymentRequest.count({ where: { status: "PENDING" } }),
+    ]);
+    return { requests, total, page, limit };
+  }
+
+  async adminListAllPaymentRequests(page = 1, limit = 30) {
+    const [requests, total] = await Promise.all([
+      this.prisma.paymentRequest.findMany({
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: { pharmacy: { select: { id: true, name: true, city: true, email: true } } },
+      }),
+      this.prisma.paymentRequest.count(),
+    ]);
+    return { requests, total };
+  }
+
+  async adminApprovePayment(requestId: string) {
+    const req = await this.prisma.paymentRequest.findUnique({
+      where: { id: requestId },
+      include: { pharmacy: { select: { name: true, email: true } } },
+    });
+    if (!req) throw new NotFoundException("Payment request not found");
+    if (req.status !== "PENDING") throw new BadRequestException("This request has already been reviewed");
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + (req.billingCycle === "ANNUAL" ? 12 : 1));
+
+    const sub = await this.prisma.subscription.upsert({
+      where: { pharmacyId: req.pharmacyId },
+      create: {
+        pharmacyId: req.pharmacyId,
+        plan: req.plan,
+        billingCycle: req.billingCycle,
+        amount: req.amount,
+        status: "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+      update: {
+        plan: req.plan,
+        billingCycle: req.billingCycle,
+        amount: req.amount,
+        status: "ACTIVE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    await this.prisma.pharmacy.update({
+      where: { id: req.pharmacyId },
+      data: { plan: req.plan, planExpiry: periodEnd, isActive: true },
+    });
+
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        subscriptionId: sub.id,
+        pharmacyId: req.pharmacyId,
+        invoiceNo: `INV-${Date.now()}`,
+        amount: req.amount,
+        status: "PAID",
+        dueDate: now,
+        paidAt: now,
+        notes: `${req.paymentMethod} | Ref: ${req.transactionId}`,
+      },
+    });
+
+    await this.prisma.paymentRequest.update({
+      where: { id: requestId },
+      data: { status: "APPROVED", reviewedAt: now },
+    });
+
+    return { subscription: sub, invoice, message: `${req.plan} plan activated for ${req.pharmacy.name}.` };
+  }
+
+  async adminRejectPayment(requestId: string, reason?: string) {
+    const req = await this.prisma.paymentRequest.findUnique({ where: { id: requestId } });
+    if (!req) throw new NotFoundException("Payment request not found");
+    if (req.status !== "PENDING") throw new BadRequestException("This request has already been reviewed");
+
+    return this.prisma.paymentRequest.update({
+      where: { id: requestId },
+      data: { status: "REJECTED", rejectionReason: reason, reviewedAt: new Date() },
+    });
   }
 
   getPlansInfo() {

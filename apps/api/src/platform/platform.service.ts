@@ -86,10 +86,16 @@ export class PlatformService {
     };
   }
 
-  async listPharmacies(page = 1, limit = 20, search?: string) {
-    const where = search
-      ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { city: { contains: search, mode: "insensitive" as const } }] }
-      : {};
+  async listPharmacies(page = 1, limit = 20, search?: string, plan?: string) {
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { city: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search } },
+      ];
+    }
+    if (plan && plan !== "ALL") where.plan = plan;
 
     const [pharmacies, total] = await Promise.all([
       this.prisma.pharmacy.findMany({
@@ -99,12 +105,20 @@ export class PlatformService {
         take: limit,
         include: {
           _count: { select: { branches: true, users: true } },
+          subscription: { select: { status: true, currentPeriodEnd: true, plan: true } },
         },
       }),
       this.prisma.pharmacy.count({ where }),
     ]);
 
-    return { pharmacies, total, page, limit, pages: Math.ceil(total / limit) };
+    // Plan summary counts
+    const [starter, professional, enterprise] = await Promise.all([
+      this.prisma.pharmacy.count({ where: { plan: "STARTER" } }),
+      this.prisma.pharmacy.count({ where: { plan: "PROFESSIONAL" } }),
+      this.prisma.pharmacy.count({ where: { plan: "ENTERPRISE" } }),
+    ]);
+
+    return { pharmacies, total, page, limit, pages: Math.ceil(total / limit), summary: { starter, professional, enterprise } };
   }
 
   async createPharmacy(dto: AdminCreatePharmacyDto) {
@@ -166,9 +180,67 @@ export class PlatformService {
   }
 
   async updatePlan(id: string, plan: string, planExpiry?: Date) {
-    return this.prisma.pharmacy.update({
+    const pharmacy = await this.prisma.pharmacy.update({
       where: { id },
-      data: { plan: plan as any, planExpiry },
+      data: { plan: plan as any, ...(planExpiry && { planExpiry }) },
+    });
+
+    // Sync subscription record
+    await this.prisma.subscription.upsert({
+      where: { pharmacyId: id },
+      create: {
+        pharmacyId: id,
+        plan: plan as any,
+        status: "ACTIVE",
+        billingCycle: "ANNUAL",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: planExpiry ?? new Date(Date.now() + 365 * 86400000),
+        amount: plan === "STARTER" ? 29 : plan === "PROFESSIONAL" ? 79 : 0,
+      },
+      update: {
+        plan: plan as any,
+        status: "ACTIVE",
+        ...(planExpiry && { currentPeriodEnd: planExpiry }),
+      },
+    });
+
+    return pharmacy;
+  }
+
+  async extendSubscription(id: string, months: number) {
+    const pharmacy = await this.prisma.pharmacy.findUnique({
+      where: { id },
+      select: { planExpiry: true, plan: true },
+    });
+    const base = pharmacy?.planExpiry && pharmacy.planExpiry > new Date()
+      ? pharmacy.planExpiry
+      : new Date();
+    const newExpiry = new Date(base);
+    newExpiry.setMonth(newExpiry.getMonth() + months);
+
+    await this.prisma.pharmacy.update({ where: { id }, data: { planExpiry: newExpiry, isActive: true } });
+    await this.prisma.subscription.upsert({
+      where: { pharmacyId: id },
+      create: {
+        pharmacyId: id, plan: pharmacy!.plan as any,
+        status: "ACTIVE", billingCycle: "MONTHLY",
+        currentPeriodStart: new Date(), currentPeriodEnd: newExpiry,
+        amount: 0,
+      },
+      update: { status: "ACTIVE", currentPeriodEnd: newExpiry },
+    });
+
+    return { extended: true, newExpiry, months };
+  }
+
+  async getPharmacyDetail(id: string) {
+    return this.prisma.pharmacy.findUnique({
+      where: { id },
+      include: {
+        subscription: true,
+        _count: { select: { branches: true, users: true, medicines: true, medicineOrders: true } },
+        branches: { select: { id: true, name: true, isActive: true } },
+      },
     });
   }
 
